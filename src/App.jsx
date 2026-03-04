@@ -1,6 +1,6 @@
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import Home from './pages/Home';
-import TeacherLogin from './pages/teacher/TeacherLogin'; // Import trang đăng nhập mới
+import TeacherLogin from './pages/teacher/TeacherLogin';
 import TeacherDashboard from './pages/teacher/TeacherDashboard';
 import StudentLogin from './pages/student/StudentLogin';
 import DoAssignment from './pages/student/DoAssignment';

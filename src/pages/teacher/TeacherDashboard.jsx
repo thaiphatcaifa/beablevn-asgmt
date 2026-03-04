@@ -1,31 +1,61 @@
-import { Routes, Route, Link } from 'react-router-dom';
+import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import RoomManager from './RoomManager';
 import ExerciseLibrary from './ExerciseLibrary';
+import CreateExercise from './CreateExercise';
+import Reports from './Reports';
 
 export default function TeacherDashboard() {
-  const linkStyle = { textDecoration: 'none', color: '#333', fontWeight: 'bold' };
+  const location = useLocation();
+
+  const navItemStyle = (path) => {
+    const isActive = location.pathname === path || (path !== '/teacher' && location.pathname.startsWith(path));
+    return {
+      color: isActive ? '#003366' : '#94a3b8', 
+      textDecoration: 'none',
+      fontWeight: isActive ? '700' : '600',
+      fontSize: '16px',
+      padding: '15px 20px',
+      borderBottom: isActive ? '3px solid #003366' : '3px solid transparent',
+      transition: 'all 0.3s',
+    };
+  };
 
   return (
-    <div style={{ display: 'flex', height: '100vh', fontFamily: 'sans-serif' }}>
-      {/* Sidebar */}
-      <div style={{ width: '250px', background: '#f8f9fa', borderRight: '1px solid #ddd', padding: '20px' }}>
-        <h2 style={{ color: '#007bff' }}>Giáo viên</h2>
-        <ul style={{ listStyleType: 'none', padding: 0, lineHeight: '2.5' }}>
-          <li><Link to="/teacher" style={linkStyle}>🏠 Tổng quan</Link></li>
-          <li><Link to="/teacher/rooms" style={linkStyle}>🏫 Quản lý Phòng</Link></li>
-          <li><Link to="/teacher/exercises" style={linkStyle}>📚 Thư viện Bài tập</Link></li>
-          <li><Link to="/" style={{...linkStyle, color: 'red'}}>🚪 Đăng xuất</Link></li>
-        </ul>
-      </div>
+    <div style={{ minHeight: '100vh', backgroundColor: '#f3f4f6' }}>
+      <header style={{ backgroundColor: 'white', padding: '0 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 100 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '40px' }}>
+          <Link to="/teacher" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
+            <img src="/BA LOGO.png" alt="BeAble Logo" style={{ height: '40px' }} />
+            <span style={{ fontWeight: '800', color: '#003366', fontSize: '1.2rem' }}>Assignment</span>
+          </Link>
+          <nav style={{ display: 'flex', gap: '5px', height: '100%' }}>
+            <Link to="/teacher" style={navItemStyle('/teacher')}>Launch</Link>
+            <Link to="/teacher/exercises" style={navItemStyle('/teacher/exercises')}>Quizzes</Link>
+            <Link to="/teacher/rooms" style={navItemStyle('/teacher/rooms')}>Rooms</Link>
+            <Link to="/teacher/reports" style={navItemStyle('/teacher/reports')}>Reports</Link>
+          </nav>
+        </div>
+        <Link to="/" style={{ color: '#dc2626', textDecoration: 'none', fontWeight: '700', padding: '8px 15px', borderRadius: '8px', background: '#fef2f2' }}>Thoát</Link>
+      </header>
 
-      {/* Main Content Area */}
-      <div style={{ flex: 1, padding: '30px', overflowY: 'auto' }}>
+      <main style={{ padding: '40px', maxWidth: '1200px', margin: '0 auto' }}>
         <Routes>
-          <Route path="/" element={<h2>Chào mừng đến với Bảng điều khiển Giáo viên</h2>} />
+          <Route path="/" element={
+            <div>
+              <h2 style={{ color: '#003366', fontWeight: '800', marginBottom: '30px' }}>Launch</h2>
+              <div style={{ display: 'flex', gap: '25px', marginTop: '20px' }}>
+                <div style={{ padding: '50px', backgroundColor: '#003366', color: 'white', borderRadius: '16px', cursor: 'pointer', flex: 1, textAlign: 'center', fontSize: '22px', fontWeight: '700', boxShadow: '0 4px 12px rgba(0, 51, 102, 0.2)' }}>Quiz</div>
+                <div style={{ padding: '50px', backgroundColor: '#e67e22', color: 'white', borderRadius: '16px', cursor: 'pointer', flex: 1, textAlign: 'center', fontSize: '22px', fontWeight: '700', boxShadow: '0 4px 12px rgba(230, 126, 34, 0.2)' }}>Space Race</div>
+                <div style={{ padding: '50px', backgroundColor: '#475569', color: 'white', borderRadius: '16px', cursor: 'pointer', flex: 1, textAlign: 'center', fontSize: '22px', fontWeight: '700', boxShadow: '0 4px 12px rgba(71, 85, 105, 0.2)' }}>Exit Ticket</div>
+              </div>
+            </div>
+          } />
           <Route path="rooms" element={<RoomManager />} />
+          <Route path="exercises/new" element={<CreateExercise />} />
           <Route path="exercises" element={<ExerciseLibrary />} />
+          <Route path="reports" element={<Reports />} />
         </Routes>
-      </div>
+      </main>
     </div>
   );
 }

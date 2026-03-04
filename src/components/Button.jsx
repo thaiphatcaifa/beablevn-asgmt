@@ -1,23 +1,33 @@
 export default function Button({ children, onClick, type = "button", variant = "primary", style }) {
-  const baseStyle = {
-    padding: '10px 20px',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-    fontWeight: 'bold',
-    fontSize: '16px',
-    width: '100%',
-    ...style
+  const variants = {
+    primary: { backgroundColor: '#003366', color: 'white' }, // Navy Blue
+    success: { backgroundColor: '#e67e22', color: 'white' }, // Cam nhấn
+    danger: { backgroundColor: '#dc2626', color: 'white' },  // Đỏ
   };
 
-  const variants = {
-    primary: { backgroundColor: '#007bff', color: 'white' },
-    success: { backgroundColor: '#28a745', color: 'white' },
-    danger: { backgroundColor: '#dc3545', color: 'white' },
+  const baseStyle = {
+    padding: '14px 24px',
+    border: 'none',
+    borderRadius: '12px',
+    cursor: 'pointer',
+    fontWeight: '700',
+    fontSize: '16px',
+    width: '100%',
+    fontFamily: "'Josefin Sans', sans-serif",
+    boxShadow: '0 10px 15px -3px rgba(0, 51, 102, 0.1)',
+    transition: 'all 0.2s',
+    ...style,
+    ...variants[variant]
   };
 
   return (
-    <button type={type} onClick={onClick} style={{ ...baseStyle, ...variants[variant] }}>
+    <button 
+      type={type} 
+      onClick={onClick} 
+      style={baseStyle}
+      onMouseOver={(e) => e.currentTarget.style.opacity = '0.85'}
+      onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
+    >
       {children}
     </button>
   );
