@@ -3,6 +3,8 @@ import RoomManager from './RoomManager';
 import ExerciseLibrary from './ExerciseLibrary';
 import CreateExercise from './CreateExercise';
 import Reports from './Reports';
+import Launch from './Launch';
+import LiveResults from './LiveResults';
 
 export default function TeacherDashboard() {
   const location = useLocation();
@@ -21,38 +23,47 @@ export default function TeacherDashboard() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#f3f4f6' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#f3f4f6', display: 'flex', flexDirection: 'column' }}>
+      {/* TOP NAVIGATION BAR */}
       <header style={{ backgroundColor: 'white', padding: '0 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', position: 'sticky', top: 0, zIndex: 100 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '40px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '30px' }}>
           <Link to="/teacher" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
             <img src="/BA LOGO.png" alt="BeAble Logo" style={{ height: '40px' }} />
             <span style={{ fontWeight: '800', color: '#003366', fontSize: '1.2rem' }}>Assignment</span>
           </Link>
           <nav style={{ display: 'flex', gap: '5px', height: '100%' }}>
             <Link to="/teacher" style={navItemStyle('/teacher')}>Launch</Link>
-            <Link to="/teacher/exercises" style={navItemStyle('/teacher/exercises')}>Quizzes</Link>
+            <Link to="/teacher/exercises" style={navItemStyle('/teacher/exercises')}>Library</Link>
             <Link to="/teacher/rooms" style={navItemStyle('/teacher/rooms')}>Rooms</Link>
+            <Link to="/teacher/live" style={navItemStyle('/teacher/live')}>Live Results</Link>
             <Link to="/teacher/reports" style={navItemStyle('/teacher/reports')}>Reports</Link>
           </nav>
         </div>
-        <Link to="/" style={{ color: '#dc2626', textDecoration: 'none', fontWeight: '700', padding: '8px 15px', borderRadius: '8px', background: '#fef2f2' }}>Thoát</Link>
+        
+        {/* SYSTEM STATUS AREA & ROOM SELECTOR */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontWeight: '600', fontSize: '14px' }}>
+            <span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#10b981', borderRadius: '50%' }}></span>
+            3 of 21
+          </div>
+          <select style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontWeight: '700', color: '#003366', outline: 'none', cursor: 'pointer', backgroundColor: '#f8fafc' }}>
+            <option value="BAGR903">BAGR903</option>
+            <option value="MATH101">MATH101</option>
+            <option value="ENG202">ENG202</option>
+          </select>
+          <div style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0' }}></div>
+          <Link to="/" style={{ color: '#dc2626', textDecoration: 'none', fontWeight: '700', padding: '8px 15px', borderRadius: '8px', background: '#fef2f2' }}>Thoát</Link>
+        </div>
       </header>
 
-      <main style={{ padding: '40px', maxWidth: '1200px', margin: '0 auto' }}>
+      <main style={{ flex: 1 }}>
         <Routes>
-          <Route path="/" element={
-            <div>
-              <h2 style={{ color: '#003366', fontWeight: '800', marginBottom: '30px' }}>Launch</h2>
-              <div style={{ display: 'flex', gap: '25px', marginTop: '20px' }}>
-                <div style={{ padding: '50px', backgroundColor: '#003366', color: 'white', borderRadius: '16px', cursor: 'pointer', flex: 1, textAlign: 'center', fontSize: '22px', fontWeight: '700', boxShadow: '0 4px 12px rgba(0, 51, 102, 0.2)' }}>Quiz</div>
-                <div style={{ padding: '50px', backgroundColor: '#e67e22', color: 'white', borderRadius: '16px', cursor: 'pointer', flex: 1, textAlign: 'center', fontSize: '22px', fontWeight: '700', boxShadow: '0 4px 12px rgba(230, 126, 34, 0.2)' }}>Space Race</div>
-                <div style={{ padding: '50px', backgroundColor: '#475569', color: 'white', borderRadius: '16px', cursor: 'pointer', flex: 1, textAlign: 'center', fontSize: '22px', fontWeight: '700', boxShadow: '0 4px 12px rgba(71, 85, 105, 0.2)' }}>Exit Ticket</div>
-              </div>
-            </div>
-          } />
+          <Route path="/" element={<Launch />} />
           <Route path="rooms" element={<RoomManager />} />
           <Route path="exercises/new" element={<CreateExercise />} />
+          <Route path="exercises/:quizId" element={<CreateExercise />} />
           <Route path="exercises" element={<ExerciseLibrary />} />
+          <Route path="live" element={<LiveResults />} />
           <Route path="reports" element={<Reports />} />
         </Routes>
       </main>

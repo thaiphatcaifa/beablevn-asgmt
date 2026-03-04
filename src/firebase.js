@@ -2,14 +2,14 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
-// Cấu hình Firebase sử dụng biến môi trường của Vite
+// Cấu hình Firebase bạn vừa cung cấp
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+  apiKey: "AIzaSyA6AsTi8cf7JpvZByapPyJ2pPOXfnKlaUQ",
+  authDomain: "beablevn-asgmt.firebaseapp.com",
+  projectId: "beablevn-asgmt",
+  storageBucket: "beablevn-asgmt.firebasestorage.app",
+  messagingSenderId: "16902127503",
+  appId: "1:16902127503:web:576a8f8858327e14c395fa"
 };
 
 // Khởi tạo Firebase App
