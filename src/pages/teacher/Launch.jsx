@@ -1,3 +1,4 @@
+// src/pages/teacher/Launch.jsx
 import { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, doc, updateDoc, getDoc } from 'firebase/firestore';
@@ -16,7 +17,7 @@ const Toggle = ({ label, checked, onChange, disabled, info }) => (
       onClick={() => !disabled && onChange(!checked)}
       style={{
         width: '46px', height: '26px', borderRadius: '13px',
-        backgroundColor: checked ? '#003366' : '#cbd5e1', // Sử dụng xanh dương đậm khi Bật
+        backgroundColor: checked ? '#003366' : '#cbd5e1',
         position: 'relative', cursor: disabled ? 'not-allowed' : 'pointer',
         transition: 'background-color 0.2s ease', opacity: disabled ? 0.6 : 1
       }}
@@ -30,7 +31,7 @@ const Toggle = ({ label, checked, onChange, disabled, info }) => (
   </div>
 );
 
-// --- COMPONENT: THẺ CHỌN PHƯƠNG THỨC (DELIVERY METHOD CARD) ---
+// --- COMPONENT: THẺ CHỌN PHƯƠNG THỨC ---
 const MethodCard = ({ title, icon, description, active, onClick }) => (
   <div onClick={onClick} style={{
     border: active ? '2px solid #003366' : '1px solid #e2e8f0',
@@ -40,7 +41,6 @@ const MethodCard = ({ title, icon, description, active, onClick }) => (
     <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: active ? '10px' : '0' }}>
       <div style={{ color: active ? '#003366' : '#94a3b8', fontSize: '24px', display: 'flex' }}>{icon}</div>
       <div style={{ flex: 1, fontSize: '16px', fontWeight: active ? '700' : '500', color: active ? '#003366' : '#475569' }}>{title}</div>
-      {/* Radio button giả lập */}
       <div style={{
         width: '20px', height: '20px', borderRadius: '50%',
         border: active ? '6px solid #003366' : '2px solid #cbd5e1',
@@ -70,39 +70,35 @@ export default function Launch() {
   const [showFinalScore, setShowFinalScore] = useState(false);
   const [oneAttempt, setOneAttempt] = useState(true);
 
-  // Fetch danh sách bài tập
+  // Lấy dữ liệu bài tập
   useEffect(() => {
     const fetchQuizzes = async () => {
       const qSnap = await getDocs(collection(db, "quizzes"));
-      setQuizzes(qSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      // Chỉ lấy các quiz chưa bị xóa
+      setQuizzes(qSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(q => !q.isDeleted));
     };
     fetchQuizzes();
   }, []);
 
   const handleLaunchActivity = async () => {
     if (!activeRoom) {
-      alert("Vui lòng chọn Lớp học ở góc phải màn hình trước khi Launch!"); return;
+      alert("Vui lòng chọn Lớp học (Room) ở góc phải màn hình trước khi Launch!"); return;
     }
     try {
       const roomSnap = await getDoc(doc(db, "rooms", activeRoom));
       if (roomSnap.data()?.activeSession) {
-        if(!window.confirm(`Lớp ${activeRoom} đang có một hoạt động diễn ra. Bạn có muốn dừng hoạt động cũ và chạy bài mới này không?`)) return;
+        if(!window.confirm(`Lớp ${activeRoom} đang có một hoạt động diễn ra. Bạn có chắc muốn dừng bài cũ và chạy bài mới này không?`)) return;
       }
 
       const quizData = quizzes.find(q => q.id === selectedQuizId);
 
+      // Cập nhật session lên Firebase, chuyển tiếp sang Live Results
       await updateDoc(doc(db, "rooms", activeRoom), {
         activeSession: {
           quizId: selectedQuizId,
           quizTitle: quizData.title,
           mode: deliveryMethod,
-          settings: {
-            shuffleQuestions,
-            shuffleAnswers,
-            showFeedback,
-            showFinalScore,
-            oneAttempt
-          },
+          settings: { shuffleQuestions, shuffleAnswers, showFeedback, showFinalScore, oneAttempt },
           status: 'active',
           startTime: new Date().toISOString()
         }
@@ -116,13 +112,12 @@ export default function Launch() {
 
   const selectedQuizData = quizzes.find(q => q.id === selectedQuizId);
 
-  // Style cho 3 nút bám chính (Tối giản, xanh dương đậm)
   const circleCardStyle = {
     width: '180px', height: '160px', borderRadius: '16px',
     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
     backgroundColor: 'white', color: '#003366', fontWeight: '700', fontSize: '18px', cursor: 'pointer',
     border: '2px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-    transition: 'all 0.2s ease', fontFamily: "'Josefin Sans', sans-serif"
+    transition: 'all 0.2s ease'
   };
 
   return (
@@ -223,20 +218,14 @@ export default function Launch() {
                     title="Instant Feedback" 
                     icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>} 
                     active={deliveryMethod === 'Instant Feedback'} 
-                    onClick={() => {
-                      setDeliveryMethod('Instant Feedback');
-                      setShuffleQuestions(false); setShuffleAnswers(false); setOneAttempt(true);
-                    }}
-                    description="Học viên làm câu hỏi theo thứ tự và không thể đổi đáp án. Nhận phản hồi ngay lập tức."
+                    onClick={() => { setDeliveryMethod('Instant Feedback'); setShuffleQuestions(false); setShuffleAnswers(false); setOneAttempt(true); }}
+                    description="Học viên làm câu hỏi theo thứ tự và không thể đổi đáp án. Nhận phản hồi ngay."
                   />
                   <MethodCard 
                     title="Open Navigation" 
                     icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>} 
                     active={deliveryMethod === 'Open Navigation'} 
-                    onClick={() => {
-                      setDeliveryMethod('Open Navigation');
-                      setShowFeedback(false); setOneAttempt(false);
-                    }}
+                    onClick={() => { setDeliveryMethod('Open Navigation'); setShowFeedback(false); setOneAttempt(false); }}
                     description="Học viên tự do chuyển giữa các câu hỏi và thay đổi đáp án trước khi nộp bài."
                   />
                   <MethodCard 
@@ -255,22 +244,9 @@ export default function Launch() {
                   <Toggle label="Require Names" checked={true} disabled={true} />
                   <Toggle label="Shuffle Questions" checked={shuffleQuestions} onChange={setShuffleQuestions} />
                   <Toggle label="Shuffle Answers" checked={shuffleAnswers} onChange={setShuffleAnswers} />
-                  
-                  <Toggle 
-                    label="Show Question Feedback" 
-                    checked={showFeedback} 
-                    onChange={setShowFeedback} 
-                    disabled={deliveryMethod === 'Open Navigation'} 
-                  />
-                  
+                  <Toggle label="Show Question Feedback" checked={showFeedback} onChange={setShowFeedback} disabled={deliveryMethod === 'Open Navigation'} />
                   <Toggle label="Show Final Score" checked={showFinalScore} onChange={setShowFinalScore} />
-                  
-                  <Toggle 
-                    label="One Attempt" 
-                    checked={oneAttempt} 
-                    onChange={setOneAttempt} 
-                    info="Học viên chỉ được gửi bài 1 lần duy nhất."
-                  />
+                  <Toggle label="One Attempt" checked={oneAttempt} onChange={setOneAttempt} info="Học viên chỉ được gửi bài 1 lần duy nhất." />
                 </div>
               </div>
 

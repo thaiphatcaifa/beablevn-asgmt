@@ -21,13 +21,6 @@ export default function RoomManager() {
   const [rosterRoom, setRosterRoom] = useState(null);
   const [newStudent, setNewStudent] = useState({ firstName: '', lastName: '', studentId: '' });
 
-  // Dữ liệu mẫu khởi tạo nhanh
-  const fullRosterBAGR903 = [
-    { lastName: "Nguyen", firstName: "Phu", studentId: "PHU180711" },
-    { lastName: "Ma", firstName: "Huy", studentId: "HUY071111" },
-    { lastName: "Nguyen", firstName: "Anh", studentId: "ANH220511" },
-  ];
-
   // 1. FETCH DỮ LIỆU TỪ FIREBASE
   const fetchRooms = async () => {
     setIsLoading(true);

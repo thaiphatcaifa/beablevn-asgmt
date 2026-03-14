@@ -1,3 +1,4 @@
+// src/pages/teacher/TeacherDashboard.jsx
 import { useState, useEffect, createContext } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
 import { collection, onSnapshot } from 'firebase/firestore';
@@ -17,41 +18,51 @@ export default function TeacherDashboard() {
   const [rooms, setRooms] = useState([]);
   const [activeRoom, setActiveRoom] = useState('');
 
-  // Lấy danh sách Rooms từ Firebase
+  // Lấy danh sách Rooms từ Firebase theo thời gian thực để dropdown luôn cập nhật
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "rooms"), (snapshot) => {
       const roomData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setRooms(roomData);
-      if (roomData.length > 0 && !activeRoom) {
-        setActiveRoom(roomData[0].id); // Mặc định chọn phòng đầu tiên
+      // Ưu tiên hiển thị các room được chọn inMenu
+      const menuRooms = roomData.filter(r => r.inMenu !== false).sort((a, b) => a.id.localeCompare(b.id));
+      setRooms(menuRooms);
+      
+      // Mặc định chọn phòng đầu tiên nếu chưa có phòng nào được chọn
+      if (menuRooms.length > 0 && !activeRoom) {
+        setActiveRoom(menuRooms[0].id); 
       }
     });
     return () => unsubscribe();
   }, [activeRoom]);
 
+  // Style cho thanh Navigation
   const navItemStyle = (path) => {
     const isActive = location.pathname === path || (path !== '/teacher' && location.pathname.startsWith(path));
     return {
-      color: isActive ? '#003366' : '#94a3b8', 
+      color: isActive ? '#003366' : '#64748b',
       textDecoration: 'none',
-      fontWeight: isActive ? '700' : '600',
+      fontWeight: '700',
       fontSize: '15px',
-      padding: '15px 20px',
-      borderBottom: isActive ? '3px solid #003366' : '3px solid transparent',
-      transition: 'all 0.2s',
+      padding: '10px 16px',
+      borderRadius: '8px',
+      backgroundColor: isActive ? '#f1f5f9' : 'transparent',
+      transition: 'all 0.2s ease',
+      display: 'inline-block'
     };
   };
 
   return (
-    <TeacherContext.Provider value={{ activeRoom, setActiveRoom, rooms }}>
-      <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column' }}>
-        <header style={{ backgroundColor: 'white', padding: '0 30px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 100 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '30px' }}>
-            <Link to="/teacher" style={{ display: 'flex', alignItems: 'center', gap: '10px', textDecoration: 'none' }}>
-              <img src="/BA LOGO.png" alt="BeAble" style={{ height: '35px' }} />
-              <span style={{ fontWeight: '800', color: '#003366', fontSize: '1.2rem', letterSpacing: '-0.5px' }}>Assignment</span>
-            </Link>
-            <nav style={{ display: 'flex', gap: '5px', height: '100%' }}>
+    <TeacherContext.Provider value={{ activeRoom, setActiveRoom }}>
+      <div style={{ minHeight: '100vh', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', fontFamily: "'Josefin Sans', sans-serif" }}>
+        
+        {/* HEADER & NAVIGATION */}
+        <header style={{ backgroundColor: 'white', borderBottom: '1px solid #e2e8f0', padding: '0 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '70px', position: 'sticky', top: 0, zIndex: 50 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '40px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <img src="/BA LOGO.png" alt="Logo" style={{ height: '36px' }} />
+              <span style={{ fontSize: '20px', fontWeight: '800', color: '#003366', letterSpacing: '0.5px' }}>BE ABLE VN</span>
+            </div>
+            
+            <nav style={{ display: 'flex', gap: '8px' }}>
               <Link to="/teacher" style={navItemStyle('/teacher')}>Launch</Link>
               <Link to="/teacher/exercises" style={navItemStyle('/teacher/exercises')}>Library</Link>
               <Link to="/teacher/rooms" style={navItemStyle('/teacher/rooms')}>Rooms</Link>
@@ -61,18 +72,21 @@ export default function TeacherDashboard() {
           </div>
           
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            {/* Bộ chọn Room dùng chung cho toàn hệ thống Teacher */}
             <select 
               value={activeRoom} 
               onChange={(e) => setActiveRoom(e.target.value)} 
-              style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: '700', color: '#003366', outline: 'none', cursor: 'pointer', backgroundColor: '#f8fafc' }}
+              style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: '700', color: '#003366', outline: 'none', cursor: 'pointer', backgroundColor: '#f8fafc', fontSize: '14px' }}
             >
+              {rooms.length === 0 && <option value="">No Rooms Available</option>}
               {rooms.map(r => <option key={r.id} value={r.id}>{r.id}</option>)}
             </select>
             <div style={{ width: '1px', height: '24px', backgroundColor: '#e2e8f0' }}></div>
-            <Link to="/" style={{ color: '#64748b', textDecoration: 'none', fontWeight: '600', fontSize: '14px' }}>Log Out</Link>
+            <Link to="/" style={{ color: '#ef4444', textDecoration: 'none', fontWeight: '700', fontSize: '14px' }}>Log Out</Link>
           </div>
         </header>
 
+        {/* NỘI DUNG CHÍNH (CÁC TABS) */}
         <main style={{ flex: 1, padding: '40px', maxWidth: '1200px', margin: '0 auto', width: '100%' }}>
           <Routes>
             <Route path="/" element={<Launch />} />
@@ -80,8 +94,8 @@ export default function TeacherDashboard() {
             <Route path="exercises/new" element={<CreateExercise />} />
             <Route path="exercises/:quizId" element={<CreateExercise />} />
             <Route path="exercises" element={<ExerciseLibrary />} />
-            <Route path="live" element={<LiveResults />} />
             <Route path="reports" element={<Reports />} />
+            <Route path="live" element={<LiveResults />} />
           </Routes>
         </main>
       </div>

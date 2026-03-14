@@ -1,22 +1,21 @@
+// src/pages/teacher/TeacherLogin.jsx
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 export default function TeacherLogin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  // Thêm state để quản lý thông báo lỗi
   const [error, setError] = useState(''); 
   const navigate = useNavigate();
 
   const handleLogin = (e) => {
     e.preventDefault();
-    // Reset lỗi mỗi lần nhấn đăng nhập
     setError(''); 
     
+    // Giả lập xác thực (có thể thay bằng Firebase Auth sau này)
     if (email === 'helpdesk@beablevn.com' && password === 'BAVNbavn$67896789#') {
       navigate('/teacher');
     } else {
-      // Thay vì dùng alert, chúng ta set thông báo lỗi vào state
       setError("Email hoặc mật khẩu không chính xác.");
     }
   };
@@ -32,7 +31,6 @@ export default function TeacherLogin() {
           <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginTop: '4px', fontWeight: '500' }}>Giáo viên Đăng nhập</p>
         </div>
 
-        {/* Khối hiển thị thông báo lỗi màu đỏ */}
         {error && (
           <div style={{ color: '#ef4444', backgroundColor: '#fef2f2', padding: '10px', borderRadius: '8px', border: '1px solid #fca5a5', fontSize: '0.875rem', textAlign: 'center', marginBottom: '20px', fontWeight: '500' }}>
             {error}
