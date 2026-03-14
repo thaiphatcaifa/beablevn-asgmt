@@ -21,29 +21,31 @@ const ReportDetailView = ({ report, onBack }) => {
 
   const dateStr = new Date(report.date).toLocaleString('vi-VN');
   
-  // Tính toán thống kê giả lập từ dữ liệu
+  // Tính toán thống kê
   const totalParticipated = report.submissions?.length || 0;
   const totalStudents = report.roster?.length || report.totalStudents || 1;
   const completionRate = Math.round((totalParticipated / totalStudents) * 100) || 0;
   const avgScore = totalParticipated > 0 ? 85 : 0; // Giả lập 85%
   const passRate = totalParticipated > 0 ? 90 : 0; // Giả lập 90%
 
-  const questionKeys = ['Q1', 'Q2', 'Q3', 'Q4', 'Q5']; // Cấu trúc giả định
+  const questionKeys = report.submissions && report.submissions[0] && report.submissions[0].answers 
+    ? Object.keys(report.submissions[0].answers).sort() 
+    : ['Q1', 'Q2', 'Q3', 'Q4', 'Q5'];
 
   return (
-    <div style={{ padding: '20px', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
+    <div style={{ padding: '30px', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
       
       {/* HEADER DETAIL */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '30px' }}>
         <div>
-          <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', marginBottom: '10px', fontWeight: '700', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', marginBottom: '10px', fontWeight: '700', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px', padding: 0 }}>
             ← Back to Reports
           </button>
-          <h2 style={{ color: '#003366', margin: 0, fontSize: '24px', fontWeight: '800' }}>{report.name}</h2>
-          <p style={{ color: '#64748b', margin: '5px 0 0 0', fontWeight: '500' }}>{dateStr} • Room: {report.room}</p>
+          <h2 style={{ color: '#003366', margin: 0, fontSize: '24px', fontWeight: '800', textTransform: 'uppercase' }}>{report.name}</h2>
+          <p style={{ color: '#64748b', margin: '8px 0 0 0', fontWeight: '500', fontSize: '15px' }}>Date: {dateStr} • Room: <span style={{ color: '#003366', fontWeight: '700' }}>{report.room}</span></p>
         </div>
         <div style={{ display: 'flex', gap: '15px' }}>
-          <button style={{ backgroundColor: 'white', color: '#003366', border: '1px solid #003366', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>
+          <button style={{ backgroundColor: 'white', color: '#003366', border: '2px solid #003366', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>
             ✉ Email Results to Students
           </button>
           <button style={{ backgroundColor: '#003366', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(0,51,102,0.2)' }}>
@@ -56,63 +58,67 @@ const ReportDetailView = ({ report, onBack }) => {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '30px' }}>
         {[
           { label: 'Total Participated', val: `${totalParticipated} / ${totalStudents}` },
-          { label: 'Completion', val: `${completionRate}%` },
+          { label: 'Completion %', val: `${completionRate}%` },
           { label: 'Average Score', val: `${avgScore}%` },
           { label: 'Pass Rate', val: `${passRate}%` }
         ].map((stat, i) => (
-          <div key={i} style={{ backgroundColor: 'white', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-            <div style={{ color: '#64748b', fontSize: '13px', textTransform: 'uppercase', fontWeight: '700', marginBottom: '8px' }}>{stat.label}</div>
-            <div style={{ color: '#003366', fontSize: '28px', fontWeight: '800' }}>{stat.val}</div>
+          <div key={i} style={{ backgroundColor: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+            <div style={{ color: '#64748b', fontSize: '13px', textTransform: 'uppercase', fontWeight: '800', marginBottom: '8px', letterSpacing: '0.5px' }}>{stat.label}</div>
+            <div style={{ color: '#003366', fontSize: '32px', fontWeight: '800' }}>{stat.val}</div>
           </div>
         ))}
       </div>
 
       {/* TOGGLES */}
-      <div style={{ display: 'flex', gap: '30px', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', gap: '30px', marginBottom: '20px', padding: '0 10px' }}>
         <Toggle label="Show Names" checked={showNames} onChange={setShowNames} />
         <Toggle label="Show Responses" checked={showResponses} onChange={setShowResponses} />
         <Toggle label="Show Results" checked={showResults} onChange={setShowResults} />
       </div>
 
       {/* RESPONSE MATRIX */}
-      <div style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+      <div style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center' }}>
           <thead style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
             <tr>
-              <th style={{ padding: '16px', textAlign: 'left', color: '#475569' }}>Name</th>
-              <th style={{ padding: '16px', color: '#475569' }}>Score</th>
-              {questionKeys.map(q => <th key={q} style={{ padding: '16px', color: '#003366' }}>{q}</th>)}
+              <th style={{ padding: '16px 20px', textAlign: 'left', color: '#475569', width: '200px' }}>Name</th>
+              <th style={{ padding: '16px', color: '#475569', width: '100px' }}>Score</th>
+              {questionKeys.map((q, i) => <th key={i} style={{ padding: '16px', color: '#003366', fontWeight: '800' }}>{i + 1}</th>)}
             </tr>
           </thead>
           <tbody>
-            {(report.roster || []).map((student, idx) => {
-              const sub = (report.submissions || []).find(s => s.id === student.studentId || s.studentId === student.studentId);
-              return (
-                <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '16px', textAlign: 'left', fontWeight: '700', color: '#003366' }}>
-                    {showNames ? `${student.lastName} ${student.firstName}` : '••••••••'}
-                  </td>
-                  <td style={{ padding: '16px', fontWeight: '700', color: sub ? '#10b981' : '#94a3b8' }}>
-                    {sub ? '85%' : '-'}
-                  </td>
-                  {questionKeys.map((q, qIdx) => {
-                    const ans = sub?.answers ? sub.answers[q] : null;
-                    const isCorrect = Math.random() > 0.3; // Giả lập
-                    let bg = 'transparent', color = '#334155', text = showResponses ? (ans || '') : '✓';
-                    if (!sub) text = '';
-                    else if (showResults) {
-                      bg = isCorrect ? '#dcfce7' : '#fee2e2';
-                      color = isCorrect ? '#15803d' : '#b91c1c';
-                    }
-                    return (
-                      <td key={qIdx} style={{ padding: '12px' }}>
-                        <div style={{ backgroundColor: bg, color, padding: '8px', borderRadius: '6px', fontWeight: '600' }}>{text}</div>
-                      </td>
-                    );
-                  })}
-                </tr>
-              )
-            })}
+            {(!report.roster || report.roster.length === 0) ? (
+              <tr><td colSpan={questionKeys.length + 2} style={{ padding: '40px', color: '#94a3b8' }}>Không có dữ liệu học viên.</td></tr>
+            ) : (
+              report.roster.map((student, idx) => {
+                const sub = (report.submissions || []).find(s => s.id === student.studentId || s.studentId === student.studentId);
+                return (
+                  <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}>
+                    <td style={{ padding: '16px 20px', textAlign: 'left', fontWeight: '700', color: '#003366' }}>
+                      {showNames ? `${student.lastName} ${student.firstName}` : '••••••••'}
+                    </td>
+                    <td style={{ padding: '16px', fontWeight: '800', color: sub ? '#10b981' : '#94a3b8' }}>
+                      {sub ? '85%' : '-'}
+                    </td>
+                    {questionKeys.map((q, qIdx) => {
+                      const ans = sub?.answers ? sub.answers[q] : null;
+                      const isCorrect = Math.random() > 0.3; // Giả lập
+                      let bg = 'transparent', color = '#334155', text = showResponses ? (ans || '') : '✓';
+                      if (!sub) text = '';
+                      else if (showResults && ans) {
+                        bg = isCorrect ? '#dcfce7' : '#fee2e2';
+                        color = isCorrect ? '#15803d' : '#b91c1c';
+                      }
+                      return (
+                        <td key={qIdx} style={{ padding: '10px' }}>
+                          <div style={{ backgroundColor: bg, color, padding: '8px', borderRadius: '8px', fontWeight: '700', minHeight: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: sub && !showResults ? '1px solid #e2e8f0' : 'none' }}>{text}</div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                )
+              })
+            )}
           </tbody>
         </table>
       </div>
@@ -150,18 +156,15 @@ export default function Reports() {
     return matchSearch && matchRoom;
   });
 
-  // Lấy danh sách Room duy nhất cho bộ lọc
   const uniqueRooms = ['All Rooms', ...new Set(reports.map(r => r.room))];
 
-  // Chức năng Checkbox
   const handleSelectAll = (e) => {
     if (e.target.checked) setSelectedReports(filteredReports.map(r => r.id));
     else setSelectedReports([]);
   };
 
-  // Xóa báo cáo
   const handleDelete = async () => {
-    if (!window.confirm(`Bạn có chắc muốn xóa ${selectedReports.length} báo cáo này?`)) return;
+    if (!window.confirm(`Bạn có chắc muốn xóa vĩnh viễn ${selectedReports.length} báo cáo này?`)) return;
     try {
       for (let id of selectedReports) {
         await deleteDoc(doc(db, "reports", id));
@@ -173,7 +176,7 @@ export default function Reports() {
     }
   };
 
-  // Nếu đang xem chi tiết, hiển thị Component Detail
+  // NẾU ĐANG CHỌN XEM BÁO CÁO -> RENDER DETAIL VIEW
   if (viewingReport) {
     return <ReportDetailView report={viewingReport} onBack={() => setViewingReport(null)} />;
   }
@@ -181,22 +184,27 @@ export default function Reports() {
   // --- RENDER DANH SÁCH REPORT (TABLE VIEW) ---
   return (
     <div style={{ padding: '30px', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
-      <h2 style={{ color: '#003366', margin: '0 0 20px 0', fontSize: '28px', fontWeight: '800' }}>Reports</h2>
+      <h2 style={{ color: '#003366', margin: '0 0 24px 0', fontSize: '28px', fontWeight: '800' }}>Reports</h2>
       
       {/* TOOLBAR: Search, Filter & Actions */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
         <div style={{ display: 'flex', gap: '15px' }}>
-          <input 
-            type="text" 
-            placeholder="🔍 Search reports..." 
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', width: '250px', outlineColor: '#003366' }}
-          />
+          <div style={{ position: 'relative' }}>
+            <span style={{ position: 'absolute', left: '14px', top: '12px', color: '#94a3b8' }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            </span>
+            <input 
+              type="text" 
+              placeholder="Search reports..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ padding: '12px 16px 12px 42px', borderRadius: '8px', border: '1px solid #cbd5e1', width: '250px', outlineColor: '#003366', fontSize: '14px' }}
+            />
+          </div>
           <select 
             value={roomFilter} 
             onChange={(e) => setRoomFilter(e.target.value)}
-            style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', outlineColor: '#003366', color: '#334155', fontWeight: '600' }}
+            style={{ padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', outlineColor: '#003366', color: '#003366', fontWeight: '700', fontSize: '14px', cursor: 'pointer', backgroundColor: 'white' }}
           >
             {uniqueRooms.map(room => <option key={room} value={room}>{room}</option>)}
           </select>
@@ -204,10 +212,10 @@ export default function Reports() {
 
         {selectedReports.length > 0 && (
           <div style={{ display: 'flex', gap: '10px' }}>
-            <button style={{ backgroundColor: 'white', color: '#003366', border: '1px solid #003366', padding: '8px 16px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>
+            <button style={{ backgroundColor: 'white', color: '#003366', border: '2px solid #003366', padding: '0 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>
               Archive
             </button>
-            <button onClick={handleDelete} style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer' }}>
+            <button onClick={handleDelete} style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '0 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>
               Delete Selected
             </button>
           </div>
@@ -215,22 +223,22 @@ export default function Reports() {
       </div>
 
       {/* TABLE VIEW */}
-      <div style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
+      <div style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-          <thead style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+          <thead style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
             <tr>
-              <th style={{ padding: '16px', width: '50px', textAlign: 'center' }}>
-                <input type="checkbox" checked={selectedReports.length > 0 && selectedReports.length === filteredReports.length} onChange={handleSelectAll} style={{ accentColor: '#003366', transform: 'scale(1.2)' }} />
+              <th style={{ padding: '16px', width: '60px', textAlign: 'center' }}>
+                <input type="checkbox" checked={selectedReports.length > 0 && selectedReports.length === filteredReports.length} onChange={handleSelectAll} style={{ accentColor: '#003366', cursor: 'pointer', width: '16px', height: '16px' }} />
               </th>
-              <th style={{ padding: '16px', color: '#475569', fontWeight: '700' }}>Name</th>
-              <th style={{ padding: '16px', color: '#475569', fontWeight: '700' }}>Date</th>
-              <th style={{ padding: '16px', color: '#475569', fontWeight: '700' }}>Room</th>
-              <th style={{ padding: '16px', color: '#475569', fontWeight: '700' }}>Type</th>
+              <th style={{ padding: '16px 20px', color: '#64748b', fontWeight: '800', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Name</th>
+              <th style={{ padding: '16px 20px', color: '#64748b', fontWeight: '800', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Date</th>
+              <th style={{ padding: '16px 20px', color: '#64748b', fontWeight: '800', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Room</th>
+              <th style={{ padding: '16px 20px', color: '#64748b', fontWeight: '800', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Type</th>
             </tr>
           </thead>
           <tbody>
             {filteredReports.length === 0 ? (
-              <tr><td colSpan="5" style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>Không tìm thấy báo cáo nào.</td></tr>
+              <tr><td colSpan="5" style={{ padding: '60px', textAlign: 'center', color: '#94a3b8', fontSize: '15px', fontWeight: '500' }}>Không tìm thấy báo cáo nào.</td></tr>
             ) : (
               filteredReports.map(report => (
                 <tr key={report.id} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}>
@@ -239,16 +247,16 @@ export default function Reports() {
                       type="checkbox" 
                       checked={selectedReports.includes(report.id)} 
                       onChange={() => setSelectedReports(prev => prev.includes(report.id) ? prev.filter(id => id !== report.id) : [...prev, report.id])} 
-                      style={{ accentColor: '#003366', transform: 'scale(1.2)' }} 
+                      style={{ accentColor: '#003366', cursor: 'pointer', width: '16px', height: '16px' }} 
                     />
                   </td>
-                  <td onClick={() => setViewingReport(report)} style={{ padding: '16px', color: '#003366', fontWeight: '800', cursor: 'pointer' }}>
+                  <td onClick={() => setViewingReport(report)} style={{ padding: '16px 20px', color: '#003366', fontWeight: '800', cursor: 'pointer' }}>
                     <span style={{ borderBottom: '1px dashed #003366' }}>{report.name}</span>
                   </td>
-                  <td style={{ padding: '16px', color: '#64748b' }}>{new Date(report.date).toLocaleString('vi-VN')}</td>
-                  <td style={{ padding: '16px', color: '#334155', fontWeight: '700' }}>{report.room}</td>
-                  <td style={{ padding: '16px', color: '#64748b' }}>
-                    <span style={{ backgroundColor: '#e2e8f0', padding: '4px 10px', borderRadius: '12px', fontSize: '13px', fontWeight: '600' }}>{report.type}</span>
+                  <td style={{ padding: '16px 20px', color: '#64748b', fontWeight: '500' }}>{new Date(report.date).toLocaleString('vi-VN')}</td>
+                  <td style={{ padding: '16px 20px', color: '#334155', fontWeight: '700' }}>{report.room}</td>
+                  <td style={{ padding: '16px 20px', color: '#64748b' }}>
+                    <span style={{ backgroundColor: '#e2e8f0', padding: '6px 12px', borderRadius: '6px', fontSize: '13px', fontWeight: '700', color: '#475569' }}>{report.type}</span>
                   </td>
                 </tr>
               ))
