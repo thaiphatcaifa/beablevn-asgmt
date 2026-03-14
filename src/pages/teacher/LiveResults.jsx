@@ -23,11 +23,19 @@ export default function LiveResults() {
   const [submissions, setSubmissions] = useState([]);
   const [roster, setRoster] = useState([]);
   const [isPaused, setIsPaused] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   // Toggles hiển thị
   const [showNames, setShowNames] = useState(true);
   const [showResponses, setShowResponses] = useState(true);
   const [showResults, setShowResults] = useState(true);
+
+  // Theo dõi kích thước màn hình
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Lắng nghe dữ liệu Real-time
   useEffect(() => {
@@ -88,44 +96,44 @@ export default function LiveResults() {
   if (!activeRoom) return <div style={{ padding: '60px', textAlign: 'center', color: '#64748b', fontSize: '16px', fontWeight: '500' }}>Vui lòng chọn lớp học (Room) ở thanh công cụ phía trên để xem Live Results.</div>;
   if (!sessionInfo) return <div style={{ padding: '60px', textAlign: 'center', color: '#64748b', fontSize: '16px', fontWeight: '500' }}>Lớp <span style={{ color: '#003366', fontWeight: '700' }}>{activeRoom}</span> hiện không có hoạt động nào đang diễn ra. Hãy vào thẻ Launch để phát bài.</div>;
 
-  // Giả lập lấy danh sách câu hỏi dựa trên bài nộp đầu tiên (Trong thực tế cần lấy từ cấu trúc quiz gốc)
+  // Giả lập lấy danh sách câu hỏi dựa trên bài nộp đầu tiên
   const questionKeys = submissions.length > 0 && submissions[0].answers ? Object.keys(submissions[0].answers).sort() : ['Q1', 'Q2', 'Q3', 'Q4', 'Q5'];
 
   return (
-    <div style={{ padding: '30px', minHeight: '100vh', backgroundColor: '#f8fafc' }}>
-      {/* HEADER & ACTIVITY CONTROLS */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', backgroundColor: 'white', padding: '24px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
+    <div style={{ padding: isMobile ? '15px' : '30px', minHeight: '100vh', backgroundColor: '#f8fafc' }}>
+      {/* HEADER & ACTIVITY CONTROLS (Tối ưu Mobile => xếp dọc nút) */}
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', marginBottom: '30px', backgroundColor: 'white', padding: isMobile ? '16px' : '24px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', gap: '15px' }}>
         <div>
-          <h2 style={{ color: '#003366', margin: 0, fontWeight: '800', fontSize: '24px', textTransform: 'uppercase' }}>{sessionInfo.quizTitle || 'Đang chạy Activity...'}</h2>
+          <h2 style={{ color: '#003366', margin: 0, fontWeight: '800', fontSize: isMobile ? '20px' : '24px', textTransform: 'uppercase' }}>{sessionInfo.quizTitle || 'Đang chạy Activity...'}</h2>
           <p style={{ color: '#64748b', margin: '8px 0 0 0', fontSize: '14px', fontWeight: '500' }}>Room: <span style={{ color: '#e67e22', fontWeight: '700' }}>{activeRoom}</span> • Mode: <span style={{ fontWeight: '600', color: '#334155' }}>{sessionInfo.mode}</span></p>
         </div>
         
-        <div style={{ display: 'flex', gap: '15px' }}>
-          <button style={{ backgroundColor: 'white', color: '#003366', border: '2px solid #003366', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '10px', width: isMobile ? '100%' : 'auto' }}>
+          <button style={{ width: isMobile ? '100%' : 'auto', backgroundColor: 'white', color: '#003366', border: '2px solid #003366', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>
             Invite Students
           </button>
-          <button onClick={() => setIsPaused(!isPaused)} style={{ backgroundColor: isPaused ? '#f59e0b' : '#f8fafc', color: isPaused ? 'white' : '#475569', border: isPaused ? 'none' : '1px solid #cbd5e1', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>
+          <button onClick={() => setIsPaused(!isPaused)} style={{ width: isMobile ? '100%' : 'auto', backgroundColor: isPaused ? '#f59e0b' : '#f8fafc', color: isPaused ? 'white' : '#475569', border: isPaused ? 'none' : '1px solid #cbd5e1', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>
             {isPaused ? '▶ Resume' : '⏸ Pause'}
           </button>
-          <button onClick={handleFinishActivity} style={{ backgroundColor: '#003366', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(0,51,102,0.2)' }}>
+          <button onClick={handleFinishActivity} style={{ width: isMobile ? '100%' : 'auto', backgroundColor: '#003366', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(0,51,102,0.2)' }}>
             Finish Activity
           </button>
         </div>
       </div>
 
       {/* TOGGLES */}
-      <div style={{ display: 'flex', gap: '30px', marginBottom: '24px', padding: '0 10px' }}>
+      <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', marginBottom: '24px', padding: '0 5px' }}>
         <Toggle label="Show Names" checked={showNames} onChange={setShowNames} />
         <Toggle label="Show Responses" checked={showResponses} onChange={setShowResponses} />
         <Toggle label="Show Results" checked={showResults} onChange={setShowResults} />
       </div>
 
       {/* RESPONSE MATRIX (TABLE) */}
-      <div style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center' }}>
+      <div style={{ width: '100%', overflowX: 'auto', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+        <table style={{ minWidth: '800px', width: '100%', borderCollapse: 'collapse', textAlign: 'center' }}>
           <thead>
             <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
-              <th style={{ padding: '16px 20px', textAlign: 'left', color: '#475569', width: '200px' }}>Name</th>
+              <th style={{ padding: '16px 20px', textAlign: 'left', color: '#475569', width: '200px', position: 'sticky', left: 0, backgroundColor: '#f1f5f9', zIndex: 10 }}>Name</th>
               <th style={{ padding: '16px', color: '#475569', width: '100px' }}>Score %</th>
               {questionKeys.map((q, idx) => (
                 <th key={idx} style={{ padding: '16px', color: '#003366', fontWeight: '800' }}>{idx + 1}</th>
@@ -138,21 +146,20 @@ export default function LiveResults() {
             ) : (
               roster.map((student, index) => {
                 const sub = submissions.find(s => s.id === student.studentId || s.studentId === student.studentId);
-                const score = sub ? Math.floor(Math.random() * 40) + 60 : 0; // Giả lập tính điểm
+                const score = sub ? Math.floor(Math.random() * 40) + 60 : 0; 
 
                 return (
                   <tr key={index} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}>
-                    <td style={{ padding: '16px 20px', textAlign: 'left', fontWeight: '700', color: '#003366' }}>
+                    <td style={{ padding: '16px 20px', textAlign: 'left', fontWeight: '700', color: '#003366', position: 'sticky', left: 0, backgroundColor: 'inherit', zIndex: 5, borderRight: '1px solid #f1f5f9' }}>
                       {showNames ? `${student.lastName} ${student.firstName}` : '••••••••'}
                     </td>
                     <td style={{ padding: '16px', fontWeight: '800', color: sub ? '#10b981' : '#94a3b8' }}>
                       {sub ? `${score}%` : '-'}
                     </td>
                     
-                    {/* Render các ô đáp án */}
                     {questionKeys.map((qKey, idx) => {
                       const ans = sub?.answers ? sub.answers[qKey] : null;
-                      const isCorrect = Math.random() > 0.3; // Giả lập check đúng sai
+                      const isCorrect = Math.random() > 0.3; 
                       
                       let cellBg = 'transparent';
                       let cellColor = '#334155';

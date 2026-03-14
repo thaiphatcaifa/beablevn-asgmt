@@ -8,6 +8,7 @@ import Input from '../../components/Input';
 export default function RoomManager() {
   const [rooms, setRooms] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   
   // States cho việc tạo phòng mới
   const [isAddingRoom, setIsAddingRoom] = useState(false);
@@ -21,6 +22,13 @@ export default function RoomManager() {
   const [rosterRoom, setRosterRoom] = useState(null);
   const [newStudent, setNewStudent] = useState({ firstName: '', lastName: '', studentId: '' });
 
+  // Lắng nghe kích thước màn hình
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
   // 1. FETCH DỮ LIỆU TỪ FIREBASE
   const fetchRooms = async () => {
     setIsLoading(true);
@@ -28,10 +36,9 @@ export default function RoomManager() {
       const querySnapshot = await getDocs(collection(db, "rooms"));
       const roomsData = querySnapshot.docs.map(doc => ({ 
         id: doc.id, 
-        inMenu: true, // Mặc định hiển thị trong menu
+        inMenu: true, 
         ...doc.data() 
       }));
-      // Sắp xếp theo ngày tạo hoặc ID để ổn định vị trí Default Room
       roomsData.sort((a, b) => a.roomId.localeCompare(b.roomId));
       setRooms(roomsData);
     } catch (error) {
@@ -89,7 +96,6 @@ export default function RoomManager() {
       const oldRoomData = rooms.find(r => r.roomId === oldRoomId);
       const newRoomData = { ...oldRoomData, roomId: newNameUpper };
       
-      // Do roomId là Document ID, ta cần tạo Doc mới và xóa Doc cũ
       await setDoc(doc(db, "rooms", newNameUpper), newRoomData);
       await deleteDoc(doc(db, "rooms", oldRoomId));
 
@@ -163,38 +169,38 @@ export default function RoomManager() {
   const UsersIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#003366" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>;
 
   return (
-    <div style={{ position: 'relative', minHeight: '100%', padding: '20px' }}>
+    <div style={{ position: 'relative', minHeight: '100%', padding: isMobile ? '15px' : '20px' }}>
       
-      {/* HEADER */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
+      {/* HEADER TỐI ƯU MOBILE (Nút Add Room full width ngang hàng dưới) */}
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', marginBottom: '30px', gap: '15px' }}>
         <div>
-          <h2 style={{ color: '#003366', fontWeight: '800', margin: 0, fontSize: '28px' }}>Rooms</h2>
+          <h2 style={{ color: '#003366', fontWeight: '800', margin: 0, fontSize: isMobile ? '24px' : '28px' }}>Rooms</h2>
           <p style={{ color: '#64748b', marginTop: '8px', fontSize: '15px' }}>Quản lý lớp học ảo để triển khai các hoạt động bài tập.</p>
         </div>
-        <Button onClick={() => setIsAddingRoom(true)} style={{ backgroundColor: '#003366', color: 'white', fontWeight: '700', padding: '12px 24px', borderRadius: '8px', border: 'none' }}>
+        <Button onClick={() => setIsAddingRoom(true)} style={{ width: isMobile ? '100%' : 'auto', backgroundColor: '#003366', color: 'white', fontWeight: '700', padding: '12px 24px', borderRadius: '8px', border: 'none' }}>
           + Add Room
         </Button>
       </div>
 
-      {/* BOX THÊM PHÒNG */}
+      {/* BOX THÊM PHÒNG (TỐI ƯU MOBILE: Xếp dọc) */}
       {isAddingRoom && (
-        <div style={{ padding: '20px', backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', marginBottom: '20px', display: 'flex', gap: '15px', alignItems: 'flex-end', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+        <div style={{ padding: '20px', backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', marginBottom: '20px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '15px', alignItems: isMobile ? 'stretch' : 'flex-end', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
           <div style={{ flex: 1 }}>
             <Input label="Room Name" placeholder="Nhập tên lớp học..." value={newRoomName} onChange={(e) => setNewRoomName(e.target.value.toUpperCase())} />
           </div>
-          <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
-            <Button onClick={handleAddRoom} style={{ backgroundColor: '#003366', color: 'white', padding: '12px 24px', borderRadius: '8px' }}>Save</Button>
-            <Button onClick={() => setIsAddingRoom(false)} style={{ backgroundColor: 'white', color: '#64748b', border: '1px solid #cbd5e1', padding: '12px 24px', borderRadius: '8px' }}>Cancel</Button>
+          <div style={{ display: 'flex', gap: '10px', marginBottom: isMobile ? '0' : '5px' }}>
+            <Button onClick={handleAddRoom} style={{ flex: 1, backgroundColor: '#003366', color: 'white', padding: '12px 24px', borderRadius: '8px' }}>Save</Button>
+            <Button onClick={() => setIsAddingRoom(false)} style={{ flex: 1, backgroundColor: 'white', color: '#64748b', border: '1px solid #cbd5e1', padding: '12px 24px', borderRadius: '8px' }}>Cancel</Button>
           </div>
         </div>
       )}
 
       {/* DANH SÁCH PHÒNG (TABLE VIEW) */}
-      <div style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+      <div style={{ width: '100%', overflowX: 'auto', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
         {isLoading ? (
           <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontWeight: '600' }}>Đang tải danh sách phòng...</div>
         ) : (
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+          <table style={{ minWidth: '700px', width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead>
               <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 <th style={{ padding: '16px 20px', color: '#64748b', fontWeight: '700', width: '80px', textAlign: 'center' }}>In Menu</th>
@@ -227,28 +233,28 @@ export default function RoomManager() {
                       <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#10b981', display: 'inline-block', boxShadow: '0 0 5px rgba(16, 185, 129, 0.5)' }} title="Active"></span>
                     </td>
 
-                    {/* Cột 3: Room Name (Có Inline Edit & Đánh dấu Default) */}
+                    {/* Cột 3: Room Name */}
                     <td style={{ padding: '16px 20px' }}>
                       {editingRoomId === room.roomId ? (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                           <input 
                             autoFocus
                             value={editRoomName}
                             onChange={(e) => setEditRoomName(e.target.value)}
                             onBlur={() => handleRenameRoom(room.roomId)}
                             onKeyDown={(e) => e.key === 'Enter' && handleRenameRoom(room.roomId)}
-                            style={{ padding: '6px 12px', borderRadius: '6px', border: '2px solid #003366', outline: 'none', fontWeight: '700', color: '#003366', width: '200px' }}
+                            style={{ padding: '6px 12px', borderRadius: '6px', border: '2px solid #003366', outline: 'none', fontWeight: '700', color: '#003366', width: '150px' }}
                           />
                           <span style={{ fontSize: '12px', color: '#94a3b8' }}>Nhấn Enter để lưu</span>
                         </div>
                       ) : (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
                           <span style={{ color: '#003366', fontWeight: '700', fontSize: '16px' }}>{room.roomId}</span>
                           <button onClick={() => { setEditingRoomId(room.roomId); setEditRoomName(room.roomId); }} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }} title="Đổi tên Room">
                             <EditIcon />
                           </button>
                           {index === 0 && (
-                            <span style={{ backgroundColor: '#e0f2fe', color: '#0284c7', fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '12px', border: '1px solid #bae6fd' }}>Default Room</span>
+                            <span style={{ backgroundColor: '#e0f2fe', color: '#0284c7', fontSize: '11px', fontWeight: '700', padding: '2px 8px', borderRadius: '12px', border: '1px solid #bae6fd', whiteSpace: 'nowrap' }}>Default Room</span>
                           )}
                         </div>
                       )}
@@ -288,14 +294,14 @@ export default function RoomManager() {
         )}
       </div>
 
-      {/* MODAL QUẢN LÝ ROSTER */}
+      {/* MODAL QUẢN LÝ ROSTER (TỐI ƯU MOBILE FORM ADD STUDENT) */}
       {rosterRoom && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px', backdropFilter: 'blur(2px)' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: isMobile ? '10px' : '20px', backdropFilter: 'blur(2px)' }}>
           <div style={{ backgroundColor: 'white', borderRadius: '16px', width: '100%', maxWidth: '800px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
             
-            <div style={{ padding: '24px 30px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc', borderRadius: '16px 16px 0 0' }}>
+            <div style={{ padding: isMobile ? '16px 20px' : '24px 30px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc', borderRadius: '16px 16px 0 0' }}>
               <div>
-                <h2 style={{ margin: 0, color: '#003366', fontWeight: '800', fontSize: '20px' }}>Danh sách học viên: {rosterRoom.roomId}</h2>
+                <h2 style={{ margin: 0, color: '#003366', fontWeight: '800', fontSize: isMobile ? '18px' : '20px' }}>Danh sách học viên: {rosterRoom.roomId}</h2>
                 <span style={{ fontSize: '14px', color: '#64748b', fontWeight: '500' }}>Tổng số: {rosterRoom.students?.length || 0} học viên</span>
               </div>
               <button onClick={() => setRosterRoom(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}>
@@ -303,44 +309,48 @@ export default function RoomManager() {
               </button>
             </div>
 
-            <div style={{ padding: '30px', overflowY: 'auto', flex: 1 }}>
-              <form onSubmit={handleAddStudent} style={{ display: 'flex', gap: '15px', alignItems: 'flex-end', marginBottom: '30px', padding: '20px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+            <div style={{ padding: isMobile ? '15px' : '30px', overflowY: 'auto', flex: 1 }}>
+              
+              {/* Form thêm học viên (Mobile: Xếp dọc) */}
+              <form onSubmit={handleAddStudent} style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '15px', alignItems: isMobile ? 'stretch' : 'flex-end', marginBottom: '30px', padding: isMobile ? '15px' : '20px', backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                 <div style={{ flex: 1 }}><Input label="Last Name" placeholder="Họ" value={newStudent.lastName} onChange={e => setNewStudent({...newStudent, lastName: e.target.value})} required /></div>
                 <div style={{ flex: 1 }}><Input label="First Name" placeholder="Tên" value={newStudent.firstName} onChange={e => setNewStudent({...newStudent, firstName: e.target.value})} required /></div>
                 <div style={{ flex: 1 }}><Input label="Student ID" placeholder="Mã HV" value={newStudent.studentId} onChange={e => setNewStudent({...newStudent, studentId: e.target.value.toUpperCase()})} required /></div>
-                <div style={{ marginBottom: '20px' }}>
-                  <Button type="submit" style={{ width: 'auto', padding: '12px 24px', backgroundColor: '#003366', color: 'white', borderRadius: '8px', fontWeight: '700' }}>Add</Button>
+                <div style={{ marginBottom: isMobile ? '0' : '5px' }}>
+                  <Button type="submit" style={{ width: isMobile ? '100%' : 'auto', padding: '12px 24px', backgroundColor: '#003366', color: 'white', borderRadius: '8px', fontWeight: '700' }}>Add</Button>
                 </div>
               </form>
 
-              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: '#f1f5f9' }}>
-                    <th style={{ padding: '14px 20px', fontWeight: '700', color: '#475569', fontSize: '13px', textTransform: 'uppercase' }}>Last Name</th>
-                    <th style={{ padding: '14px 20px', fontWeight: '700', color: '#475569', fontSize: '13px', textTransform: 'uppercase' }}>First Name</th>
-                    <th style={{ padding: '14px 20px', fontWeight: '700', color: '#475569', fontSize: '13px', textTransform: 'uppercase' }}>Student ID</th>
-                    <th style={{ padding: '14px 20px', fontWeight: '700', color: '#475569', fontSize: '13px', textTransform: 'uppercase', textAlign: 'center' }}>Remove</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(rosterRoom.students || []).length === 0 ? (
-                    <tr><td colSpan="4" style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>Chưa có học viên nào trong danh sách.</td></tr>
-                  ) : (
-                    rosterRoom.students.map((student, idx) => (
-                      <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '14px 20px', color: '#334155', fontWeight: '600' }}>{student.lastName}</td>
-                        <td style={{ padding: '14px 20px', color: '#334155', fontWeight: '600' }}>{student.firstName}</td>
-                        <td style={{ padding: '14px 20px', color: '#003366', fontWeight: '700' }}>{student.studentId}</td>
-                        <td style={{ padding: '14px 20px', textAlign: 'center' }}>
-                          <button onClick={() => handleDeleteStudent(student.studentId)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }} title="Xóa học viên">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                          </button>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+              <div style={{ width: '100%', overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+                <table style={{ minWidth: '500px', width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: '#f1f5f9' }}>
+                      <th style={{ padding: '14px 20px', fontWeight: '700', color: '#475569', fontSize: '13px', textTransform: 'uppercase' }}>Last Name</th>
+                      <th style={{ padding: '14px 20px', fontWeight: '700', color: '#475569', fontSize: '13px', textTransform: 'uppercase' }}>First Name</th>
+                      <th style={{ padding: '14px 20px', fontWeight: '700', color: '#475569', fontSize: '13px', textTransform: 'uppercase' }}>Student ID</th>
+                      <th style={{ padding: '14px 20px', fontWeight: '700', color: '#475569', fontSize: '13px', textTransform: 'uppercase', textAlign: 'center' }}>Remove</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(rosterRoom.students || []).length === 0 ? (
+                      <tr><td colSpan="4" style={{ padding: '30px', textAlign: 'center', color: '#94a3b8' }}>Chưa có học viên nào trong danh sách.</td></tr>
+                    ) : (
+                      rosterRoom.students.map((student, idx) => (
+                        <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '14px 20px', color: '#334155', fontWeight: '600' }}>{student.lastName}</td>
+                          <td style={{ padding: '14px 20px', color: '#334155', fontWeight: '600' }}>{student.firstName}</td>
+                          <td style={{ padding: '14px 20px', color: '#003366', fontWeight: '700' }}>{student.studentId}</td>
+                          <td style={{ padding: '14px 20px', textAlign: 'center' }}>
+                            <button onClick={() => handleDeleteStudent(student.studentId)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }} title="Xóa học viên">
+                              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>

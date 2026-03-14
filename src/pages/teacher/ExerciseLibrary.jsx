@@ -1,7 +1,7 @@
 // src/pages/teacher/ExerciseLibrary.jsx
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs, doc, deleteDoc, addDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, deleteDoc, addDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
@@ -24,6 +24,7 @@ export default function ExerciseLibrary() {
   const navigate = useNavigate();
   const [quizzes, setQuizzes] = useState([]);
   const [folders, setFolders] = useState([]);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   
   // Trạng thái giao diện chung
   const [viewTab, setViewTab] = useState('Quizzes');
@@ -39,13 +40,20 @@ export default function ExerciseLibrary() {
   const menuRef = useRef(null);
 
   useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    
     const handleClickOutside = (event) => {
       if (menuRef.current && !menuRef.current.contains(event.target)) {
         setActiveMenuId(null);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      document.removeEventListener("mousedown", handleClickOutside);
+    }
   }, []);
 
   // Fetch Data từ Firebase
@@ -55,7 +63,6 @@ export default function ExerciseLibrary() {
         const qSnap = await getDocs(collection(db, "quizzes"));
         const qData = qSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         setQuizzes(qData);
-        // Tương lai có thể fetch Folders từ collection riêng, hiện tại giả lập 2 folder
         setFolders([
           { id: 'f1', name: 'Unit 1: Mathematics', modified: '2024-03-10', parentId: null },
           { id: 'f2', name: 'Unit 2: Science', modified: '2024-03-12', parentId: null }
@@ -68,23 +75,53 @@ export default function ExerciseLibrary() {
   }, []);
 
   // --- CÁC HÀM XỬ LÝ ---
-  const handleRename = (item, isFolder) => {
+
+  // Xử lý tạo thư mục mới
+  const handleCreateFolder = () => {
+    if (!inputValue.trim()) {
+      alert("Vui lòng nhập tên thư mục!");
+      return;
+    }
+    
+    const newFolder = {
+      id: 'folder_' + Date.now(),
+      name: inputValue.trim(),
+      modified: new Date().toISOString().split('T')[0],
+      parentId: currentFolder
+    };
+    
+    setFolders([...folders, newFolder]);
+    setInputValue('');
+    setShowFolderModal(false);
+  };
+
+  const handleRename = async (item, isFolder) => {
     const currentName = isFolder ? item.name : item.title;
     const newName = window.prompt("Nhập tên mới:", currentName);
     if (newName && newName.trim() !== "" && newName !== currentName) {
-      if (isFolder) setFolders(folders.map(f => f.id === item.id ? { ...f, name: newName } : f));
-      else setQuizzes(quizzes.map(q => q.id === item.id ? { ...q, title: newName } : q));
+      if (isFolder) {
+        setFolders(folders.map(f => f.id === item.id ? { ...f, name: newName } : f));
+      } else {
+        try {
+          await updateDoc(doc(db, "quizzes", item.id), { title: newName });
+          setQuizzes(quizzes.map(q => q.id === item.id ? { ...q, title: newName } : q));
+        } catch (error) { console.error(error); alert("Lỗi khi đổi tên trên hệ thống!"); }
+      }
     }
     setActiveMenuId(null);
   };
 
-  const handleDuplicate = (quiz) => {
-    const duplicatedQuiz = { ...quiz, id: 'q_' + Date.now(), title: quiz.title + ' (Copy)', modified: new Date().toISOString().split('T')[0] };
-    setQuizzes([...quizzes, duplicatedQuiz]);
+  const handleDuplicate = async (quiz) => {
+    const newId = 'q_' + Date.now();
+    const duplicatedQuiz = { ...quiz, id: newId, title: quiz.title + ' (Copy)', modified: new Date().toISOString().split('T')[0] };
+    try {
+      await setDoc(doc(db, "quizzes", newId), duplicatedQuiz);
+      setQuizzes([...quizzes, duplicatedQuiz]);
+    } catch (error) { console.error(error); alert("Lỗi khi nhân bản trên hệ thống!"); }
     setActiveMenuId(null);
   };
 
-  const handleMove = (item, isFolder) => {
+  const handleMove = async (item, isFolder) => {
     const targetFolderName = window.prompt("Nhập tên thư mục (Để trống để dời ra ngoài gốc):");
     if (targetFolderName !== null) {
       let targetFolderId = null;
@@ -93,28 +130,46 @@ export default function ExerciseLibrary() {
         if (targetFolder) targetFolderId = targetFolder.id;
         else { alert("Không tìm thấy thư mục có tên này!"); setActiveMenuId(null); return; }
       }
-      if (isFolder) setFolders(folders.map(f => f.id === item.id ? { ...f, parentId: targetFolderId } : f));
-      else setQuizzes(quizzes.map(q => q.id === item.id ? { ...q, folderId: targetFolderId } : q));
+      if (isFolder) {
+        setFolders(folders.map(f => f.id === item.id ? { ...f, parentId: targetFolderId } : f));
+      } else {
+        try {
+          await updateDoc(doc(db, "quizzes", item.id), { folderId: targetFolderId });
+          setQuizzes(quizzes.map(q => q.id === item.id ? { ...q, folderId: targetFolderId } : q));
+        } catch (error) { console.error(error); alert("Lỗi khi di chuyển trên hệ thống!"); }
+      }
     }
     setActiveMenuId(null);
   };
 
-  const handleDelete = (item, isFolder) => {
+  const handleDelete = async (item, isFolder) => {
     if (window.confirm(`Bạn có chắc muốn xóa ${isFolder ? 'thư mục' : 'bài tập'} này?`)) {
-      if (isFolder) setFolders(folders.filter(f => f.id !== item.id));
-      else setQuizzes(quizzes.map(q => q.id === item.id ? { ...q, isDeleted: true } : q));
+      if (isFolder) {
+        setFolders(folders.filter(f => f.id !== item.id));
+      } else {
+        try {
+          await updateDoc(doc(db, "quizzes", item.id), { isDeleted: true });
+          setQuizzes(quizzes.map(q => q.id === item.id ? { ...q, isDeleted: true } : q));
+        } catch (error) { console.error(error); alert("Lỗi khi xóa trên hệ thống!"); }
+      }
     }
     setActiveMenuId(null);
   };
 
-  const handleRestore = (item) => {
-    setQuizzes(quizzes.map(q => q.id === item.id ? { ...q, isDeleted: false } : q));
+  const handleRestore = async (item) => {
+    try {
+      await updateDoc(doc(db, "quizzes", item.id), { isDeleted: false });
+      setQuizzes(quizzes.map(q => q.id === item.id ? { ...q, isDeleted: false } : q));
+    } catch (error) { console.error(error); alert("Lỗi khi khôi phục trên hệ thống!"); }
     setActiveMenuId(null);
   };
 
-  const handleHardDelete = (item) => {
+  const handleHardDelete = async (item) => {
     if (window.confirm("Bạn có chắc muốn xóa VĨNH VIỄN bài tập này?")) {
-      setQuizzes(quizzes.filter(q => q.id !== item.id));
+      try {
+        await deleteDoc(doc(db, "quizzes", item.id));
+        setQuizzes(quizzes.filter(q => q.id !== item.id));
+      } catch (error) { console.error(error); alert("Lỗi khi xóa vĩnh viễn trên hệ thống!"); }
     }
     setActiveMenuId(null);
   };
@@ -155,6 +210,7 @@ export default function ExerciseLibrary() {
         <button style={btnStyle} onClick={() => { if(!isFolder) navigate(`/teacher/exercises/${item.id}`); }}> <Icons.Edit /> Edit</button>
         {!isFolder && <button style={btnStyle} onClick={() => handleDuplicate(item)}> <Icons.Copy /> Duplicate</button>}
         <button style={btnStyle} onClick={() => handleMove(item, isFolder)}> <Icons.Move /> Move</button>
+        <button style={btnStyle} onClick={() => handleRename(item, isFolder)}> <Icons.Edit /> Rename</button>
         <hr style={{ border: 'none', borderTop: '1px solid #f1f5f9', margin: '4px 0' }} />
         <button style={{ ...btnStyle, color: '#ef4444' }} onClick={() => handleDelete(item, isFolder)}> <Icons.Trash /> Delete</button>
       </div>
@@ -162,106 +218,109 @@ export default function ExerciseLibrary() {
   };
 
   return (
-    <div style={{ padding: '30px', backgroundColor: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ padding: isMobile ? '15px' : '30px', backgroundColor: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       
-      {/* HEADER */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+      {/* HEADER TỐI ƯU MOBILE */}
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', marginBottom: '32px', gap: '15px' }}>
         <div>
           <h2 style={{ color: '#003366', margin: 0, fontSize: '28px', fontWeight: '800' }}>Library {currentFolder ? `> Folder` : ''}</h2>
           <p style={{ color: '#64748b', margin: '6px 0 0 0', fontSize: '15px' }}>Quản lý và tổ chức các bài tập (Quizzes)</p>
         </div>
 
-        <div style={{ display: 'flex', gap: '15px' }}>
-          <div style={{ position: 'relative' }}>
+        <div style={{ display: 'flex', gap: '10px', width: isMobile ? '100%' : 'auto', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: isMobile ? '1 1 100%' : 'none' }}>
             <span style={{ position: 'absolute', left: '14px', top: '12px', color: '#94a3b8' }}><Icons.Search /></span>
             <input 
               type="text" placeholder="Search quiz..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ padding: '12px 16px 12px 42px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px', width: '220px' }}
+              style={{ padding: '12px 16px 12px 42px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px', width: '100%', minWidth: isMobile ? '0' : '220px', boxSizing: 'border-box' }}
             />
           </div>
-          <Button onClick={() => setShowFolderModal(true)} style={{ backgroundColor: 'white', color: '#003366', border: '2px solid #003366', fontWeight: '700', padding: '0 20px', borderRadius: '8px' }}>
+          <Button onClick={() => setShowFolderModal(true)} style={{ flex: isMobile ? 1 : 'none', backgroundColor: 'white', color: '#003366', border: '2px solid #003366', fontWeight: '700', padding: '0 15px', borderRadius: '8px' }}>
             + New Folder
           </Button>
-          <Button onClick={() => navigate('/teacher/exercises/new')} style={{ backgroundColor: '#003366', color: 'white', border: 'none', fontWeight: '700', padding: '0 20px', borderRadius: '8px' }}>
+          <Button onClick={() => navigate('/teacher/exercises/new')} style={{ flex: isMobile ? 1 : 'none', backgroundColor: '#003366', color: 'white', border: 'none', fontWeight: '700', padding: '0 15px', borderRadius: '8px' }}>
             + Add Quiz
           </Button>
         </div>
       </div>
 
       {/* TABS */}
-      <div style={{ display: 'flex', gap: '30px', borderBottom: '2px solid #e2e8f0', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', gap: '30px', borderBottom: '2px solid #e2e8f0', marginBottom: '24px', overflowX: 'auto' }}>
         <button 
           onClick={() => { setViewTab('Quizzes'); setSelectedItems([]); }}
-          style={{ background: 'none', border: 'none', padding: '12px 0', fontSize: '16px', fontWeight: '700', cursor: 'pointer', color: viewTab === 'Quizzes' ? '#003366' : '#94a3b8', borderBottom: viewTab === 'Quizzes' ? '3px solid #003366' : '3px solid transparent', marginBottom: '-2px' }}
+          style={{ background: 'none', border: 'none', padding: '12px 0', fontSize: '16px', fontWeight: '700', cursor: 'pointer', color: viewTab === 'Quizzes' ? '#003366' : '#94a3b8', borderBottom: viewTab === 'Quizzes' ? '3px solid #003366' : '3px solid transparent', marginBottom: '-2px', whiteSpace: 'nowrap' }}
         >
           Quizzes
         </button>
         <button 
           onClick={() => { setViewTab('Deleted'); setSelectedItems([]); setCurrentFolder(null); }}
-          style={{ background: 'none', border: 'none', padding: '12px 0', fontSize: '16px', fontWeight: '700', cursor: 'pointer', color: viewTab === 'Deleted' ? '#003366' : '#94a3b8', borderBottom: viewTab === 'Deleted' ? '3px solid #003366' : '3px solid transparent', marginBottom: '-2px' }}
+          style={{ background: 'none', border: 'none', padding: '12px 0', fontSize: '16px', fontWeight: '700', cursor: 'pointer', color: viewTab === 'Deleted' ? '#003366' : '#94a3b8', borderBottom: viewTab === 'Deleted' ? '3px solid #003366' : '3px solid transparent', marginBottom: '-2px', whiteSpace: 'nowrap' }}
         >
           Deleted
         </button>
       </div>
 
-      {/* TABLE VIEW CHÍNH */}
-      <div style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'visible', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-        
-        <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 200px 80px', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', fontWeight: '800', color: '#64748b', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', borderRadius: '12px 12px 0 0' }}>
-          <div style={{ display: 'flex', justifyContent: 'center' }}><input type="checkbox" onChange={(e) => handleSelectAll(e, allDisplayedItems)} checked={selectedItems.length > 0 && selectedItems.length === allDisplayedItems.length} style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#003366' }} /></div>
-          <div>Name</div>
-          <div>Modified</div>
-          <div style={{ textAlign: 'center' }}>Options</div>
+      {/* TABLE VIEW TỐI ƯU MOBILE */}
+      <div style={{ width: '100%', overflowX: 'auto', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+        <div style={{ minWidth: '600px' }}>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 200px 80px', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', fontWeight: '800', color: '#64748b', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', borderRadius: '12px 12px 0 0' }}>
+            <div style={{ display: 'flex', justifyContent: 'center' }}><input type="checkbox" onChange={(e) => handleSelectAll(e, allDisplayedItems)} checked={selectedItems.length > 0 && selectedItems.length === allDisplayedItems.length} style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#003366' }} /></div>
+            <div>Name</div>
+            <div>Modified</div>
+            <div style={{ textAlign: 'center' }}>Options</div>
+          </div>
+
+          {currentFolder && viewTab === 'Quizzes' && (
+            <div onClick={() => setCurrentFolder(null)} style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer', color: '#64748b' }}>
+              <div style={{ width: '60px', display: 'flex', justifyContent: 'center' }}><Icons.Back /></div>
+              <span style={{ fontWeight: '600', fontSize: '15px' }}>Quay lại cấp trước</span>
+            </div>
+          )}
+
+          {displayedFolders.map(folder => (
+            <div key={folder.id} style={{ display: 'grid', gridTemplateColumns: '60px 1fr 200px 80px', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #f1f5f9', position: 'relative', transition: 'background 0.2s', zIndex: activeMenuId === folder.id ? 50 : 1 }}>
+              <div style={{ display: 'flex', justifyContent: 'center' }}><input type="checkbox" checked={selectedItems.includes(folder.id)} onChange={() => handleSelectItem(folder.id)} style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#003366' }} /></div>
+              <div onClick={() => setCurrentFolder(folder.id)} style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer' }}>
+                <Icons.Folder /><span style={{ fontWeight: '700', color: '#003366', fontSize: '15px' }}>{folder.name}</span>
+              </div>
+              <div style={{ color: '#64748b', fontSize: '14px', fontWeight: '500' }}>{folder.modified}</div>
+              <div style={{ textAlign: 'center' }}>
+                <button onClick={() => setActiveMenuId(activeMenuId === folder.id ? null : folder.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' }}><Icons.More /></button>
+                {renderMoreOptions(folder, true)}
+              </div>
+            </div>
+          ))}
+
+          {displayedQuizzes.map(quiz => (
+            <div key={quiz.id} style={{ display: 'grid', gridTemplateColumns: '60px 1fr 200px 80px', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #f1f5f9', position: 'relative', transition: 'background 0.2s', zIndex: activeMenuId === quiz.id ? 50 : 1 }}>
+              <div style={{ display: 'flex', justifyContent: 'center' }}><input type="checkbox" checked={selectedItems.includes(quiz.id)} onChange={() => handleSelectItem(quiz.id)} style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#003366' }} /></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <Icons.Quiz /><span style={{ fontWeight: '600', color: '#334155', fontSize: '15px', textDecoration: quiz.isDeleted ? 'line-through' : 'none', opacity: quiz.isDeleted ? 0.6 : 1 }}>{quiz.title}</span>
+              </div>
+              <div style={{ color: '#64748b', fontSize: '14px', fontWeight: '500' }}>{quiz.modified}</div>
+              <div style={{ textAlign: 'center' }}>
+                <button onClick={() => setActiveMenuId(activeMenuId === quiz.id ? null : quiz.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' }}><Icons.More /></button>
+                {renderMoreOptions(quiz, false)}
+              </div>
+            </div>
+          ))}
+
+          {allDisplayedItems.length === 0 && (
+            <div style={{ padding: '60px 20px', textAlign: 'center', color: '#94a3b8', fontSize: '15px', fontWeight: '500' }}>Không có dữ liệu trong mục này.</div>
+          )}
         </div>
-
-        {currentFolder && viewTab === 'Quizzes' && (
-          <div onClick={() => setCurrentFolder(null)} style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer', color: '#64748b' }}>
-            <div style={{ width: '60px', display: 'flex', justifyContent: 'center' }}><Icons.Back /></div>
-            <span style={{ fontWeight: '600', fontSize: '15px' }}>Quay lại cấp trước</span>
-          </div>
-        )}
-
-        {displayedFolders.map(folder => (
-          <div key={folder.id} style={{ display: 'grid', gridTemplateColumns: '60px 1fr 200px 80px', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #f1f5f9', position: 'relative', transition: 'background 0.2s', zIndex: activeMenuId === folder.id ? 50 : 1 }}>
-            <div style={{ display: 'flex', justifyContent: 'center' }}><input type="checkbox" checked={selectedItems.includes(folder.id)} onChange={() => handleSelectItem(folder.id)} style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#003366' }} /></div>
-            <div onClick={() => setCurrentFolder(folder.id)} style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer' }}>
-              <Icons.Folder /><span style={{ fontWeight: '700', color: '#003366', fontSize: '15px' }}>{folder.name}</span>
-            </div>
-            <div style={{ color: '#64748b', fontSize: '14px', fontWeight: '500' }}>{folder.modified}</div>
-            <div style={{ textAlign: 'center' }}>
-              <button onClick={() => setActiveMenuId(activeMenuId === folder.id ? null : folder.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' }}><Icons.More /></button>
-              {renderMoreOptions(folder, true)}
-            </div>
-          </div>
-        ))}
-
-        {displayedQuizzes.map(quiz => (
-          <div key={quiz.id} style={{ display: 'grid', gridTemplateColumns: '60px 1fr 200px 80px', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #f1f5f9', position: 'relative', transition: 'background 0.2s', zIndex: activeMenuId === quiz.id ? 50 : 1 }}>
-            <div style={{ display: 'flex', justifyContent: 'center' }}><input type="checkbox" checked={selectedItems.includes(quiz.id)} onChange={() => handleSelectItem(quiz.id)} style={{ width: '16px', height: '16px', cursor: 'pointer', accentColor: '#003366' }} /></div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <Icons.Quiz /><span style={{ fontWeight: '600', color: '#334155', fontSize: '15px', textDecoration: quiz.isDeleted ? 'line-through' : 'none', opacity: quiz.isDeleted ? 0.6 : 1 }}>{quiz.title}</span>
-            </div>
-            <div style={{ color: '#64748b', fontSize: '14px', fontWeight: '500' }}>{quiz.modified}</div>
-            <div style={{ textAlign: 'center' }}>
-              <button onClick={() => setActiveMenuId(activeMenuId === quiz.id ? null : quiz.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: '4px' }}><Icons.More /></button>
-              {renderMoreOptions(quiz, false)}
-            </div>
-          </div>
-        ))}
-
-        {allDisplayedItems.length === 0 && (
-          <div style={{ padding: '60px 20px', textAlign: 'center', color: '#94a3b8', fontSize: '15px', fontWeight: '500' }}>Không có dữ liệu trong mục này.</div>
-        )}
       </div>
 
+      {/* NEW FOLDER MODAL TỐI ƯU MOBILE */}
       {showFolderModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '16px', width: '400px' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '15px', boxSizing: 'border-box' }}>
+          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '16px', width: '100%', maxWidth: '400px' }}>
             <h3 style={{ color: '#003366', marginTop: 0, marginBottom: '20px', fontWeight: '800' }}>Tạo Thư mục mới</h3>
             <Input placeholder="Tên thư mục..." value={inputValue} onChange={e => setInputValue(e.target.value)} />
             <div style={{ display: 'flex', gap: '10px', marginTop: '24px', justifyContent: 'flex-end' }}>
-              <Button style={{ backgroundColor: 'white', color: '#64748b', border: '1px solid #cbd5e1' }} onClick={() => setShowFolderModal(false)}>Hủy</Button>
-              <Button style={{ backgroundColor: '#003366', color: 'white', border: 'none' }}>Tạo</Button>
+              <Button style={{ backgroundColor: 'white', color: '#64748b', border: '1px solid #cbd5e1' }} onClick={() => { setShowFolderModal(false); setInputValue(''); }}>Hủy</Button>
+              <Button onClick={handleCreateFolder} style={{ backgroundColor: '#003366', color: 'white', border: 'none' }}>Tạo</Button>
             </div>
           </div>
         </div>

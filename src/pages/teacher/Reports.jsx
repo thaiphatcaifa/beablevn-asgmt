@@ -18,6 +18,13 @@ const ReportDetailView = ({ report, onBack }) => {
   const [showNames, setShowNames] = useState(true);
   const [showResponses, setShowResponses] = useState(true);
   const [showResults, setShowResults] = useState(true);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const dateStr = new Date(report.date).toLocaleString('vi-VN');
   
@@ -25,64 +32,64 @@ const ReportDetailView = ({ report, onBack }) => {
   const totalParticipated = report.submissions?.length || 0;
   const totalStudents = report.roster?.length || report.totalStudents || 1;
   const completionRate = Math.round((totalParticipated / totalStudents) * 100) || 0;
-  const avgScore = totalParticipated > 0 ? 85 : 0; // Giả lập 85%
-  const passRate = totalParticipated > 0 ? 90 : 0; // Giả lập 90%
+  const avgScore = totalParticipated > 0 ? 85 : 0; 
+  const passRate = totalParticipated > 0 ? 90 : 0; 
 
   const questionKeys = report.submissions && report.submissions[0] && report.submissions[0].answers 
     ? Object.keys(report.submissions[0].answers).sort() 
     : ['Q1', 'Q2', 'Q3', 'Q4', 'Q5'];
 
   return (
-    <div style={{ padding: '30px', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
+    <div style={{ padding: isMobile ? '15px' : '30px', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
       
       {/* HEADER DETAIL */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '30px' }}>
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'flex-start', marginBottom: '30px', gap: '15px' }}>
         <div>
           <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', marginBottom: '10px', fontWeight: '700', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '5px', padding: 0 }}>
             ← Back to Reports
           </button>
-          <h2 style={{ color: '#003366', margin: 0, fontSize: '24px', fontWeight: '800', textTransform: 'uppercase' }}>{report.name}</h2>
-          <p style={{ color: '#64748b', margin: '8px 0 0 0', fontWeight: '500', fontSize: '15px' }}>Date: {dateStr} • Room: <span style={{ color: '#003366', fontWeight: '700' }}>{report.room}</span></p>
+          <h2 style={{ color: '#003366', margin: 0, fontSize: isMobile ? '20px' : '24px', fontWeight: '800', textTransform: 'uppercase', lineHeight: '1.3' }}>{report.name}</h2>
+          <p style={{ color: '#64748b', margin: '8px 0 0 0', fontWeight: '500', fontSize: '14px' }}>Date: {dateStr} • Room: <span style={{ color: '#003366', fontWeight: '700' }}>{report.room}</span></p>
         </div>
-        <div style={{ display: 'flex', gap: '15px' }}>
-          <button style={{ backgroundColor: 'white', color: '#003366', border: '2px solid #003366', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>
-            ✉ Email Results to Students
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '10px', width: isMobile ? '100%' : 'auto' }}>
+          <button style={{ width: isMobile ? '100%' : 'auto', backgroundColor: 'white', color: '#003366', border: '2px solid #003366', padding: '10px 15px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', fontSize: isMobile ? '13px' : '14px' }}>
+            ✉ Email
           </button>
-          <button style={{ backgroundColor: '#003366', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(0,51,102,0.2)' }}>
-            ⬇ Export Results
+          <button style={{ width: isMobile ? '100%' : 'auto', backgroundColor: '#003366', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(0,51,102,0.2)', fontSize: isMobile ? '13px' : '14px', whiteSpace: 'nowrap' }}>
+            ⬇ Export
           </button>
         </div>
       </div>
 
       {/* STATS OVERVIEW */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '30px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr 1fr' : 'repeat(4, 1fr)', gap: '15px', marginBottom: '30px' }}>
         {[
-          { label: 'Total Participated', val: `${totalParticipated} / ${totalStudents}` },
+          { label: 'Participated', val: `${totalParticipated} / ${totalStudents}` },
           { label: 'Completion %', val: `${completionRate}%` },
           { label: 'Average Score', val: `${avgScore}%` },
           { label: 'Pass Rate', val: `${passRate}%` }
         ].map((stat, i) => (
-          <div key={i} style={{ backgroundColor: 'white', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
-            <div style={{ color: '#64748b', fontSize: '13px', textTransform: 'uppercase', fontWeight: '800', marginBottom: '8px', letterSpacing: '0.5px' }}>{stat.label}</div>
-            <div style={{ color: '#003366', fontSize: '32px', fontWeight: '800' }}>{stat.val}</div>
+          <div key={i} style={{ backgroundColor: 'white', padding: isMobile ? '16px' : '24px', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
+            <div style={{ color: '#64748b', fontSize: '12px', textTransform: 'uppercase', fontWeight: '800', marginBottom: '8px', letterSpacing: '0.5px' }}>{stat.label}</div>
+            <div style={{ color: '#003366', fontSize: isMobile ? '24px' : '32px', fontWeight: '800' }}>{stat.val}</div>
           </div>
         ))}
       </div>
 
       {/* TOGGLES */}
-      <div style={{ display: 'flex', gap: '30px', marginBottom: '20px', padding: '0 10px' }}>
+      <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', marginBottom: '20px', padding: '0 5px' }}>
         <Toggle label="Show Names" checked={showNames} onChange={setShowNames} />
         <Toggle label="Show Responses" checked={showResponses} onChange={setShowResponses} />
         <Toggle label="Show Results" checked={showResults} onChange={setShowResults} />
       </div>
 
       {/* RESPONSE MATRIX */}
-      <div style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center' }}>
+      <div style={{ width: '100%', overflowX: 'auto', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+        <table style={{ minWidth: '700px', width: '100%', borderCollapse: 'collapse', textAlign: 'center' }}>
           <thead style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
             <tr>
-              <th style={{ padding: '16px 20px', textAlign: 'left', color: '#475569', width: '200px' }}>Name</th>
-              <th style={{ padding: '16px', color: '#475569', width: '100px' }}>Score</th>
+              <th style={{ padding: '16px 20px', textAlign: 'left', color: '#475569', width: '200px', position: 'sticky', left: 0, backgroundColor: '#f1f5f9', zIndex: 10 }}>Name</th>
+              <th style={{ padding: '16px', color: '#475569', width: '80px' }}>Score</th>
               {questionKeys.map((q, i) => <th key={i} style={{ padding: '16px', color: '#003366', fontWeight: '800' }}>{i + 1}</th>)}
             </tr>
           </thead>
@@ -94,7 +101,7 @@ const ReportDetailView = ({ report, onBack }) => {
                 const sub = (report.submissions || []).find(s => s.id === student.studentId || s.studentId === student.studentId);
                 return (
                   <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}>
-                    <td style={{ padding: '16px 20px', textAlign: 'left', fontWeight: '700', color: '#003366' }}>
+                    <td style={{ padding: '16px 20px', textAlign: 'left', fontWeight: '700', color: '#003366', position: 'sticky', left: 0, backgroundColor: 'inherit', zIndex: 5, borderRight: '1px solid #f1f5f9' }}>
                       {showNames ? `${student.lastName} ${student.firstName}` : '••••••••'}
                     </td>
                     <td style={{ padding: '16px', fontWeight: '800', color: sub ? '#10b981' : '#94a3b8' }}>
@@ -133,13 +140,19 @@ export default function Reports() {
   const [roomFilter, setRoomFilter] = useState('All Rooms');
   const [selectedReports, setSelectedReports] = useState([]);
   const [viewingReport, setViewingReport] = useState(null);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Fetch dữ liệu từ Firebase
   const fetchReports = async () => {
     try {
       const snap = await getDocs(collection(db, "reports"));
       const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      // Sort mới nhất lên đầu
       data.sort((a, b) => new Date(b.date) - new Date(a.date));
       setReports(data);
     } catch (error) {
@@ -176,20 +189,19 @@ export default function Reports() {
     }
   };
 
-  // NẾU ĐANG CHỌN XEM BÁO CÁO -> RENDER DETAIL VIEW
   if (viewingReport) {
     return <ReportDetailView report={viewingReport} onBack={() => setViewingReport(null)} />;
   }
 
   // --- RENDER DANH SÁCH REPORT (TABLE VIEW) ---
   return (
-    <div style={{ padding: '30px', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
-      <h2 style={{ color: '#003366', margin: '0 0 24px 0', fontSize: '28px', fontWeight: '800' }}>Reports</h2>
+    <div style={{ padding: isMobile ? '15px' : '30px', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
+      <h2 style={{ color: '#003366', margin: '0 0 24px 0', fontSize: isMobile ? '24px' : '28px', fontWeight: '800' }}>Reports</h2>
       
-      {/* TOOLBAR: Search, Filter & Actions */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '24px' }}>
-        <div style={{ display: 'flex', gap: '15px' }}>
-          <div style={{ position: 'relative' }}>
+      {/* TOOLBAR: Search, Filter & Actions (Mobile xếp dọc) */}
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', marginBottom: '24px', gap: '15px' }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '10px', width: isMobile ? '100%' : 'auto' }}>
+          <div style={{ position: 'relative', width: isMobile ? '100%' : 'auto' }}>
             <span style={{ position: 'absolute', left: '14px', top: '12px', color: '#94a3b8' }}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
             </span>
@@ -198,24 +210,24 @@ export default function Reports() {
               placeholder="Search reports..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              style={{ padding: '12px 16px 12px 42px', borderRadius: '8px', border: '1px solid #cbd5e1', width: '250px', outlineColor: '#003366', fontSize: '14px' }}
+              style={{ padding: '12px 16px 12px 42px', borderRadius: '8px', border: '1px solid #cbd5e1', width: '100%', minWidth: isMobile ? '0' : '220px', outlineColor: '#003366', fontSize: '14px', boxSizing: 'border-box' }}
             />
           </div>
           <select 
             value={roomFilter} 
             onChange={(e) => setRoomFilter(e.target.value)}
-            style={{ padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', outlineColor: '#003366', color: '#003366', fontWeight: '700', fontSize: '14px', cursor: 'pointer', backgroundColor: 'white' }}
+            style={{ width: isMobile ? '100%' : 'auto', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', outlineColor: '#003366', color: '#003366', fontWeight: '700', fontSize: '14px', cursor: 'pointer', backgroundColor: 'white' }}
           >
             {uniqueRooms.map(room => <option key={room} value={room}>{room}</option>)}
           </select>
         </div>
 
         {selectedReports.length > 0 && (
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button style={{ backgroundColor: 'white', color: '#003366', border: '2px solid #003366', padding: '0 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>
+          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '10px', width: isMobile ? '100%' : 'auto' }}>
+            <button style={{ width: isMobile ? '100%' : 'auto', backgroundColor: 'white', color: '#003366', border: '2px solid #003366', padding: '10px 15px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>
               Archive
             </button>
-            <button onClick={handleDelete} style={{ backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '0 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>
+            <button onClick={handleDelete} style={{ width: isMobile ? '100%' : 'auto', backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               Delete Selected
             </button>
           </div>
@@ -223,8 +235,8 @@ export default function Reports() {
       </div>
 
       {/* TABLE VIEW */}
-      <div style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+      <div style={{ width: '100%', overflowX: 'auto', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+        <table style={{ minWidth: '700px', width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
             <tr>
               <th style={{ padding: '16px', width: '60px', textAlign: 'center' }}>
