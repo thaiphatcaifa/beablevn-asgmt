@@ -1,32 +1,48 @@
+// src/pages/teacher/LiveResults.jsx
 import { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, onSnapshot, doc, updateDoc, addDoc, getDocs, deleteDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import Button from '../../components/Button';
 import { TeacherContext } from './TeacherDashboard';
+
+// --- COMPONENT: TOGGLE SWITCH ---
+const Toggle = ({ label, checked, onChange }) => (
+  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => onChange(!checked)}>
+    <div style={{ width: '36px', height: '20px', borderRadius: '10px', backgroundColor: checked ? '#003366' : '#cbd5e1', position: 'relative', transition: 'all 0.2s' }}>
+      <div style={{ width: '16px', height: '16px', borderRadius: '50%', backgroundColor: 'white', position: 'absolute', top: '2px', left: checked ? '18px' : '2px', transition: 'all 0.2s' }} />
+    </div>
+    <span style={{ fontSize: '14px', color: '#334155', fontWeight: '600' }}>{label}</span>
+  </div>
+);
 
 export default function LiveResults() {
   const navigate = useNavigate();
   const { activeRoom } = useContext(TeacherContext);
-  const [submissions, setSubmissions] = useState([]);
+  
   const [sessionInfo, setSessionInfo] = useState(null);
+  const [submissions, setSubmissions] = useState([]);
+  const [roster, setRoster] = useState([]);
+  const [isPaused, setIsPaused] = useState(false);
 
-  // Visibility Toggles
+  // Toggles hiển thị
   const [showNames, setShowNames] = useState(true);
   const [showResponses, setShowResponses] = useState(true);
   const [showResults, setShowResults] = useState(true);
 
+  // Lắng nghe dữ liệu Real-time
   useEffect(() => {
     if (!activeRoom) return;
 
-    // Lắng nghe trạng thái session của Room
+    // Lấy thông tin phiên đang chạy và danh sách học viên trong Room
     const roomUnsub = onSnapshot(doc(db, "rooms", activeRoom), (docSnap) => {
       if (docSnap.exists()) {
-        setSessionInfo(docSnap.data().activeSession || null);
+        const data = docSnap.data();
+        setSessionInfo(data.activeSession || null);
+        setRoster(data.students || []);
       }
     });
 
-    // Lắng nghe dữ liệu học viên nộp bài
+    // Lắng nghe bài nộp
     const subUnsub = onSnapshot(collection(db, `rooms/${activeRoom}/submissions`), (snap) => {
       setSubmissions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
@@ -34,101 +50,133 @@ export default function LiveResults() {
     return () => { roomUnsub(); subUnsub(); };
   }, [activeRoom]);
 
-  const handleFinish = async () => {
-    if(!window.confirm("Kết thúc hoạt động này? Dữ liệu sẽ được lưu vào Reports.")) return;
-    
+  // Xử lý Kết thúc Activity và chuyển dữ liệu sang Reports
+  const handleFinishActivity = async () => {
+    if (!window.confirm("Bạn có chắc muốn kết thúc bài tập này? Kết quả sẽ được lưu vào Reports.")) return;
+    if (!activeRoom || !sessionInfo) return;
+
     try {
-      // 1. Lưu vào Reports
-      if (sessionInfo && submissions.length > 0) {
-        await addDoc(collection(db, "reports"), {
-          room: activeRoom,
-          quizTitle: sessionInfo.quizTitle,
-          mode: sessionInfo.mode,
-          date: new Date().toISOString(),
-          results: submissions
-        });
+      // 1. Tạo bản ghi Report
+      const reportData = {
+        name: sessionInfo.quizTitle || "Untitled Activity",
+        date: new Date().toISOString(),
+        room: activeRoom,
+        type: sessionInfo.mode || "Quiz",
+        totalStudents: roster.length,
+        submissions: submissions, // Lưu lại toàn bộ ma trận kết quả
+        roster: roster
+      };
+      await addDoc(collection(db, "reports"), reportData);
+
+      // 2. Xóa Submissions hiện tại trong Room
+      const subDocs = await getDocs(collection(db, `rooms/${activeRoom}/submissions`));
+      for (const subDoc of subDocs.docs) {
+        await deleteDoc(doc(db, `rooms/${activeRoom}/submissions`, subDoc.id));
       }
 
-      // 2. Xóa active session trong Room
+      // 3. Xóa activeSession khỏi Room
       await updateDoc(doc(db, "rooms", activeRoom), { activeSession: null });
 
-      // 3. Xóa các document trong collection submissions
-      const subDocs = await getDocs(collection(db, `rooms/${activeRoom}/submissions`));
-      subDocs.forEach(async (d) => {
-        await deleteDoc(doc(db, `rooms/${activeRoom}/submissions`, d.id));
-      });
-
+      alert("Đã lưu kết quả vào Reports!");
       navigate('/teacher/reports');
     } catch (error) {
-      console.error("Lỗi khi kết thúc:", error);
+      console.error("Lỗi khi lưu Report:", error);
+      alert("Có lỗi xảy ra khi kết thúc Activity.");
     }
   };
 
-  const toggleBtnStyle = (active) => ({
-    padding: '6px 12px', borderRadius: '4px', cursor: 'pointer',
-    backgroundColor: active ? '#003366' : 'transparent',
-    color: active ? 'white' : '#64748b',
-    border: active ? 'none' : '1px solid #cbd5e1',
-    fontWeight: '600', fontSize: '13px', fontFamily: "'Josefin Sans', sans-serif"
-  });
+  if (!activeRoom) return <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Vui lòng chọn lớp học (Room) ở góc phải để xem Live Results.</div>;
+  if (!sessionInfo) return <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Lớp {activeRoom} hiện không có hoạt động nào đang diễn ra. Hãy vào thẻ Launch để phát bài.</div>;
 
-  if (!sessionInfo) {
-    return (
-      <div style={{ textAlign: 'center', padding: '60px', color: '#94a3b8' }}>
-        <div style={{ fontSize: '40px', marginBottom: '15px' }}>📡</div>
-        <h3 style={{ margin: 0, color: '#475569' }}>Không có hoạt động nào đang diễn ra ở lớp {activeRoom}</h3>
-        <p>Hãy vào tab Launch để khởi chạy một bài tập.</p>
-      </div>
-    );
-  }
-
-  const questionKeys = submissions.length > 0 && submissions[0].answers ? Object.keys(submissions[0].answers).sort() : ['Q1', 'Q2'];
+  // Giả lập lấy danh sách câu hỏi từ bài nộp đầu tiên (hoặc từ quiz data)
+  const questionKeys = submissions.length > 0 && submissions[0].answers ? Object.keys(submissions[0].answers).sort() : ['Q1', 'Q2', 'Q3', 'Q4', 'Q5'];
 
   return (
-    <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+    <div style={{ padding: '20px', minHeight: '100vh', backgroundColor: '#f8fafc' }}>
+      {/* HEADER & ACTIVITY CONTROLS */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px', backgroundColor: 'white', padding: '20px', borderRadius: '12px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
         <div>
-          <h2 style={{ color: '#003366', margin: '0 0 10px 0', fontSize: '22px' }}>{sessionInfo.quizTitle}</h2>
-          <div style={{ display: 'flex', gap: '15px' }}>
-            <button onClick={() => setShowNames(!showNames)} style={toggleBtnStyle(showNames)}>Names</button>
-            <button onClick={() => setShowResponses(!showResponses)} style={toggleBtnStyle(showResponses)}>Responses</button>
-            <button onClick={() => setShowResults(!showResults)} style={toggleBtnStyle(showResults)}>Results</button>
-          </div>
+          <h2 style={{ color: '#003366', margin: 0, fontWeight: '800', fontSize: '24px' }}>{sessionInfo.quizTitle || 'Đang chạy Activity...'}</h2>
+          <p style={{ color: '#64748b', margin: '5px 0 0 0', fontSize: '14px', fontWeight: '500' }}>Room: <span style={{ color: '#e67e22', fontWeight: '700' }}>{activeRoom}</span> • Mode: {sessionInfo.mode}</p>
         </div>
-        <Button onClick={handleFinish} variant="outline">Finish Activity</Button>
+        
+        <div style={{ display: 'flex', gap: '15px' }}>
+          <button style={{ backgroundColor: 'white', color: '#003366', border: '1px solid #003366', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>
+            Invite Students
+          </button>
+          <button onClick={() => setIsPaused(!isPaused)} style={{ backgroundColor: isPaused ? '#f59e0b' : '#f1f5f9', color: isPaused ? 'white' : '#475569', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>
+            {isPaused ? '▶ Resume' : '⏸ Pause'}
+          </button>
+          <button onClick={handleFinishActivity} style={{ backgroundColor: '#003366', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(0,51,102,0.2)' }}>
+            Finish Activity
+          </button>
+        </div>
       </div>
 
-      <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+      {/* TOGGLES */}
+      <div style={{ display: 'flex', gap: '30px', marginBottom: '20px', padding: '0 10px' }}>
+        <Toggle label="Show Names" checked={showNames} onChange={setShowNames} />
+        <Toggle label="Show Responses" checked={showResponses} onChange={setShowResponses} />
+        <Toggle label="Show Results" checked={showResults} onChange={setShowResults} />
+      </div>
+
+      {/* RESPONSE MATRIX (TABLE) */}
+      <div style={{ backgroundColor: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center' }}>
           <thead>
-            <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-              <th style={{ padding: '12px 15px', textAlign: 'left', color: '#334155' }}>Name</th>
-              <th style={{ padding: '12px 15px', color: '#334155' }}>Progress</th>
-              {questionKeys.map((qKey, index) => (
-                <th key={index} style={{ padding: '12px', color: '#334155' }}>{index + 1}</th>
+            <tr style={{ backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+              <th style={{ padding: '16px', textAlign: 'left', color: '#475569', width: '25%' }}>Name</th>
+              <th style={{ padding: '16px', color: '#475569', width: '10%' }}>Score %</th>
+              {questionKeys.map((q, idx) => (
+                <th key={idx} style={{ padding: '16px', color: '#003366', fontWeight: '800' }}>{idx + 1}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {submissions.length === 0 ? (
-              <tr><td colSpan={questionKeys.length + 2} style={{ padding: '30px', color: '#94a3b8' }}>Đang chờ học viên trả lời...</td></tr>
+            {roster.length === 0 ? (
+              <tr><td colSpan={questionKeys.length + 2} style={{ padding: '30px', color: '#94a3b8' }}>Chưa có học viên trong lớp.</td></tr>
             ) : (
-              submissions.map((sub) => (
-                <tr key={sub.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '12px 15px', textAlign: 'left', fontWeight: '700', color: '#003366' }}>
-                    {showNames ? sub.id : '••••••••'}
-                  </td>
-                  <td style={{ padding: '12px 15px', color: '#10b981', fontWeight: 'bold' }}>100%</td>
-                  {questionKeys.map((qKey, index) => {
-                    const ansText = sub.answers ? sub.answers[qKey] : '';
-                    return (
-                      <td key={index} style={{ padding: '12px', fontWeight: '600', color: '#334155' }}>
-                        {showResponses ? ansText : '✔'}
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))
+              roster.map((student, index) => {
+                // Lấy bài nộp của học viên nếu có
+                const sub = submissions.find(s => s.id === student.studentId || s.studentId === student.studentId);
+                const score = sub ? Math.floor(Math.random() * 40) + 60 : 0; // Giả lập tính điểm
+
+                return (
+                  <tr key={index} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '16px', textAlign: 'left', fontWeight: '700', color: '#003366' }}>
+                      {showNames ? `${student.lastName} ${student.firstName}` : '••••••••'}
+                    </td>
+                    <td style={{ padding: '16px', fontWeight: '700', color: sub ? '#10b981' : '#94a3b8' }}>
+                      {sub ? `${score}%` : '-'}
+                    </td>
+                    
+                    {/* Render các ô đáp án */}
+                    {questionKeys.map((qKey, idx) => {
+                      const ans = sub?.answers ? sub.answers[qKey] : null;
+                      const isCorrect = Math.random() > 0.3; // Giả lập check đúng sai
+                      
+                      let cellBg = 'transparent';
+                      let cellColor = '#334155';
+                      let cellText = showResponses ? (ans || '') : '✓';
+
+                      if (!sub) {
+                        cellText = '';
+                      } else if (showResults) {
+                        cellBg = isCorrect ? '#dcfce7' : '#fee2e2'; // Xanh lá / Đỏ nhạt
+                        cellColor = isCorrect ? '#15803d' : '#b91c1c';
+                      }
+
+                      return (
+                        <td key={idx} style={{ padding: '12px' }}>
+                          <div style={{ backgroundColor: cellBg, color: cellColor, padding: '8px', borderRadius: '6px', fontWeight: '600', minHeight: '35px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {cellText}
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

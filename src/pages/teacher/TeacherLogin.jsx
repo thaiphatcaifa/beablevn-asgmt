@@ -4,14 +4,20 @@ import { useNavigate } from 'react-router-dom';
 export default function TeacherLogin() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  // Thêm state để quản lý thông báo lỗi
+  const [error, setError] = useState(''); 
   const navigate = useNavigate();
 
   const handleLogin = (e) => {
     e.preventDefault();
+    // Reset lỗi mỗi lần nhấn đăng nhập
+    setError(''); 
+    
     if (email === 'helpdesk@beablevn.com' && password === 'BAVNbavn$67896789#') {
       navigate('/teacher');
     } else {
-      alert("Tài khoản hoặc mật khẩu không chính xác!");
+      // Thay vì dùng alert, chúng ta set thông báo lỗi vào state
+      setError("Email hoặc mật khẩu không chính xác.");
     }
   };
 
@@ -25,6 +31,13 @@ export default function TeacherLogin() {
           <h1 style={{ fontSize: '1.5rem', fontWeight: '800', color: '#003366', margin: 0 }}>BE ABLE VN</h1>
           <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginTop: '4px', fontWeight: '500' }}>Giáo viên Đăng nhập</p>
         </div>
+
+        {/* Khối hiển thị thông báo lỗi màu đỏ */}
+        {error && (
+          <div style={{ color: '#ef4444', backgroundColor: '#fef2f2', padding: '10px', borderRadius: '8px', border: '1px solid #fca5a5', fontSize: '0.875rem', textAlign: 'center', marginBottom: '20px', fontWeight: '500' }}>
+            {error}
+          </div>
+        )}
 
         <form onSubmit={handleLogin}>
           <div style={{ marginBottom: '20px' }}>
