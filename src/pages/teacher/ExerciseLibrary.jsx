@@ -1,7 +1,7 @@
 // src/pages/teacher/ExerciseLibrary.jsx
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs, doc, deleteDoc, addDoc, updateDoc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, deleteDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
@@ -56,17 +56,19 @@ export default function ExerciseLibrary() {
     }
   }, []);
 
-  // Fetch Data từ Firebase
+  // Đồng bộ Quizzes và Folders từ Firebase
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // Fetch quizzes
         const qSnap = await getDocs(collection(db, "quizzes"));
         const qData = qSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         setQuizzes(qData);
-        setFolders([
-          { id: 'f1', name: 'Unit 1: Mathematics', modified: '2024-03-10', parentId: null },
-          { id: 'f2', name: 'Unit 2: Science', modified: '2024-03-12', parentId: null }
-        ]);
+
+        // Fetch folders từ Firestore thay vì hardcode
+        const fSnap = await getDocs(collection(db, "folders"));
+        const fData = fSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setFolders(fData);
       } catch (error) {
         console.error("Lỗi lấy dữ liệu Library:", error);
       }
@@ -74,43 +76,56 @@ export default function ExerciseLibrary() {
     fetchData();
   }, []);
 
-  // --- CÁC HÀM XỬ LÝ ---
+  // --- CÁC HÀM XỬ LÝ ĐƯỢC ĐỒNG BỘ FIREBASE ---
 
-  // Xử lý tạo thư mục mới
-  const handleCreateFolder = () => {
+  // TẠO THƯ MỤC
+  const handleCreateFolder = async () => {
     if (!inputValue.trim()) {
       alert("Vui lòng nhập tên thư mục!");
       return;
     }
     
+    const newFolderId = 'folder_' + Date.now();
     const newFolder = {
-      id: 'folder_' + Date.now(),
       name: inputValue.trim(),
       modified: new Date().toISOString().split('T')[0],
       parentId: currentFolder
     };
     
-    setFolders([...folders, newFolder]);
-    setInputValue('');
-    setShowFolderModal(false);
+    try {
+      await setDoc(doc(db, "folders", newFolderId), newFolder);
+      setFolders([...folders, { id: newFolderId, ...newFolder }]);
+      setInputValue('');
+      setShowFolderModal(false);
+    } catch (error) {
+      console.error("Lỗi tạo thư mục:", error);
+      alert("Có lỗi xảy ra khi tạo thư mục!");
+    }
   };
 
+  // ĐỔI TÊN THƯ MỤC / BÀI TẬP
   const handleRename = async (item, isFolder) => {
     const currentName = isFolder ? item.name : item.title;
     const newName = window.prompt("Nhập tên mới:", currentName);
     if (newName && newName.trim() !== "" && newName !== currentName) {
       if (isFolder) {
-        setFolders(folders.map(f => f.id === item.id ? { ...f, name: newName } : f));
+        try {
+          await updateDoc(doc(db, "folders", item.id), { name: newName });
+          setFolders(folders.map(f => f.id === item.id ? { ...f, name: newName } : f));
+        } catch (error) {
+          console.error(error); alert("Lỗi khi đổi tên thư mục!");
+        }
       } else {
         try {
           await updateDoc(doc(db, "quizzes", item.id), { title: newName });
           setQuizzes(quizzes.map(q => q.id === item.id ? { ...q, title: newName } : q));
-        } catch (error) { console.error(error); alert("Lỗi khi đổi tên trên hệ thống!"); }
+        } catch (error) { console.error(error); alert("Lỗi khi đổi tên bài tập!"); }
       }
     }
     setActiveMenuId(null);
   };
 
+  // NHÂN BẢN BÀI TẬP
   const handleDuplicate = async (quiz) => {
     const newId = 'q_' + Date.now();
     const duplicatedQuiz = { ...quiz, id: newId, title: quiz.title + ' (Copy)', modified: new Date().toISOString().split('T')[0] };
@@ -121,6 +136,7 @@ export default function ExerciseLibrary() {
     setActiveMenuId(null);
   };
 
+  // DI CHUYỂN THƯ MỤC / BÀI TẬP
   const handleMove = async (item, isFolder) => {
     const targetFolderName = window.prompt("Nhập tên thư mục (Để trống để dời ra ngoài gốc):");
     if (targetFolderName !== null) {
@@ -130,32 +146,47 @@ export default function ExerciseLibrary() {
         if (targetFolder) targetFolderId = targetFolder.id;
         else { alert("Không tìm thấy thư mục có tên này!"); setActiveMenuId(null); return; }
       }
+      
       if (isFolder) {
-        setFolders(folders.map(f => f.id === item.id ? { ...f, parentId: targetFolderId } : f));
+        // Không cho phép di chuyển thư mục vào chính nó
+        if (targetFolderId === item.id) {
+           alert("Không thể di chuyển thư mục vào chính nó!"); setActiveMenuId(null); return;
+        }
+        try {
+          await updateDoc(doc(db, "folders", item.id), { parentId: targetFolderId });
+          setFolders(folders.map(f => f.id === item.id ? { ...f, parentId: targetFolderId } : f));
+        } catch (error) { console.error(error); alert("Lỗi khi di chuyển thư mục!"); }
       } else {
         try {
           await updateDoc(doc(db, "quizzes", item.id), { folderId: targetFolderId });
           setQuizzes(quizzes.map(q => q.id === item.id ? { ...q, folderId: targetFolderId } : q));
-        } catch (error) { console.error(error); alert("Lỗi khi di chuyển trên hệ thống!"); }
+        } catch (error) { console.error(error); alert("Lỗi khi di chuyển bài tập!"); }
       }
     }
     setActiveMenuId(null);
   };
 
+  // XÓA THƯ MỤC / BÀI TẬP
   const handleDelete = async (item, isFolder) => {
     if (window.confirm(`Bạn có chắc muốn xóa ${isFolder ? 'thư mục' : 'bài tập'} này?`)) {
       if (isFolder) {
-        setFolders(folders.filter(f => f.id !== item.id));
+        try {
+          // Xóa hoàn toàn thư mục khỏi Firestore
+          await deleteDoc(doc(db, "folders", item.id));
+          setFolders(folders.filter(f => f.id !== item.id));
+        } catch (error) { console.error(error); alert("Lỗi khi xóa thư mục!"); }
       } else {
         try {
+          // Đánh dấu xóa tạm (Soft delete) cho bài tập để vào thùng rác
           await updateDoc(doc(db, "quizzes", item.id), { isDeleted: true });
           setQuizzes(quizzes.map(q => q.id === item.id ? { ...q, isDeleted: true } : q));
-        } catch (error) { console.error(error); alert("Lỗi khi xóa trên hệ thống!"); }
+        } catch (error) { console.error(error); alert("Lỗi khi xóa bài tập!"); }
       }
     }
     setActiveMenuId(null);
   };
 
+  // KHÔI PHỤC BÀI TẬP (Chỉ áp dụng cho Quiz)
   const handleRestore = async (item) => {
     try {
       await updateDoc(doc(db, "quizzes", item.id), { isDeleted: false });
@@ -164,6 +195,7 @@ export default function ExerciseLibrary() {
     setActiveMenuId(null);
   };
 
+  // XÓA VĨNH VIỄN BÀI TẬP (Chỉ áp dụng cho Quiz)
   const handleHardDelete = async (item) => {
     if (window.confirm("Bạn có chắc muốn xóa VĨNH VIỄN bài tập này?")) {
       try {

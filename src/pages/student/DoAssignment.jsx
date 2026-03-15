@@ -1,5 +1,5 @@
 // src/pages/student/DoAssignment.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
@@ -13,7 +13,11 @@ const SvgIcons = {
   Passage: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>,
   LogOut: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>,
   Info: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>,
-  Lock: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+  Lock: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>,
+  Menu: () => <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>,
+  Close: () => <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>,
+  User: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>,
+  Refresh: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
 };
 
 export default function DoAssignment() {
@@ -29,12 +33,40 @@ export default function DoAssignment() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const studentId = localStorage.getItem('currentStudentId');
 
+  // Quản lý History Session
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [currentSessionId, setCurrentSessionId] = useState(null);
+  const sessionsRef = useRef([]);
+
+  // States cho Menu và Verification
+  const [showVerification, setShowVerification] = useState(true);
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef(null);
+
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    
+    // Đóng menu khi click ra ngoài
+    const handleClickOutside = (event) => {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, []);
 
+  const handleLogout = () => {
+    localStorage.removeItem('currentStudentId');
+    navigate('/student/login'); 
+  };
+
+  // Lắng nghe Room & Quiz
   useEffect(() => {
     const roomRef = doc(db, "rooms", roomId);
     const unsubscribe = onSnapshot(roomRef, async (snap) => {
@@ -45,7 +77,6 @@ export default function DoAssignment() {
           const quizSnap = await getDoc(doc(db, "quizzes", activeSession.quizId));
           if (quizSnap.exists()) {
             setQuiz({ id: activeSession.quizId, ...quizSnap.data() });
-            setIsSubmitted(false);
           }
         } else {
           setQuiz(null);
@@ -57,6 +88,19 @@ export default function DoAssignment() {
     return () => unsubscribe();
   }, [roomId]);
 
+  // RESET KHI CÓ LAUNCH MỚI
+  useEffect(() => {
+    if (sessionInfo?.startTime) {
+      setIsInitialized(false);
+      setLocalAnswers({});
+      setLockedQuestions({});
+      setCurrentSessionId(null);
+      setIsSubmitted(false);
+      sessionsRef.current = [];
+    }
+  }, [sessionInfo?.startTime]);
+
+  // Xáo trộn & Khởi tạo logic (Shuffle)
   useEffect(() => {
     if (!quiz || !sessionInfo) {
       setShuffledQuiz(null);
@@ -97,6 +141,109 @@ export default function DoAssignment() {
     setShuffledQuiz({ ...quiz, questions: processedQuestions });
   }, [quiz, sessionInfo, shuffledQuiz]);
 
+  // --- LOGIC ONE ATTEMPT & KHỞI TẠO PHIÊN (SESSION) ---
+  useEffect(() => {
+    if (!shuffledQuiz || !sessionInfo || isInitialized) return;
+
+    const initSession = async () => {
+      const subRef = doc(db, `rooms/${roomId}/submissions`, studentId);
+      const subSnap = await getDoc(subRef);
+      let prevRaw = {};
+      let existingSessions = [];
+      let isSub = false;
+
+      if (subSnap.exists()) {
+        const data = subSnap.data();
+        isSub = !!data.submittedAt;
+        existingSessions = data.sessions || [];
+
+        if (!isSub) {
+          if (sessionInfo.settings?.oneAttempt) {
+            prevRaw = data.rawAnswers || {};
+            const locks = {};
+            Object.keys(prevRaw).forEach(k => {
+              const ans = prevRaw[k];
+              if (Array.isArray(ans) && ans.length > 0) locks[k] = true;
+              else if (typeof ans === 'object' && Object.keys(ans).length > 0) locks[k] = true;
+              else if (typeof ans === 'string' && ans.trim() !== '') locks[k] = true;
+            });
+            setLockedQuestions(locks);
+          } else {
+            prevRaw = {};
+          }
+        } else {
+          prevRaw = data.rawAnswers || {};
+        }
+      }
+
+      if (!isSub) {
+        const newSessionId = Date.now().toString();
+        const newSession = {
+          sessionId: newSessionId,
+          loginTime: new Date().toISOString(),
+          exitTime: new Date().toISOString(),
+          completedCount: Object.keys(prevRaw).length,
+          score: 0
+        };
+        existingSessions.push(newSession);
+        setCurrentSessionId(newSessionId);
+        sessionsRef.current = existingSessions;
+
+        await setDoc(subRef, {
+          studentId,
+          studentName: studentId,
+          rawAnswers: prevRaw,
+          answers: {}, 
+          sessions: existingSessions,
+          lastUpdated: new Date().toISOString()
+        }, { merge: true });
+      }
+
+      setLocalAnswers(prevRaw);
+      setIsSubmitted(isSub);
+      setIsInitialized(true);
+    };
+
+    initSession();
+  }, [shuffledQuiz, sessionInfo, isInitialized, roomId, studentId]);
+
+  const evaluateAnswer = (question, studentAnswer) => {
+    if (!studentAnswer) return false;
+    const ans = String(studentAnswer).trim().toLowerCase();
+
+    if (question.type === 'MCQ') {
+      const correctStr = (question.correctOptions || []).sort().map(i => String.fromCharCode(65 + i)).join(', ').toLowerCase();
+      return ans === correctStr;
+    }
+    if (['EVALUATION', 'MATCHING'].includes(question.type)) {
+      const correctStr = String(question.correctOption || question.correctMatch || '').trim().toLowerCase();
+      return ans === correctStr;
+    }
+    if (question.type === 'SAQ') {
+      const correctOpts = (question.correctText || '').split(',').map(s => s.trim().toLowerCase());
+      return correctOpts.includes(ans);
+    }
+    if (question.type.startsWith('GAP_FILL')) {
+       let allCorrect = true;
+       const items = question.type === 'GAP_FILL_PARAGRAPH' ? question.gaps : question.labels;
+       if (!items || items.length === 0) return false;
+
+       items.forEach(item => {
+         const correctAnsArray = (item.answerString || '').split(',').map(s => s.trim().toLowerCase());
+         const regex = new RegExp(`\\[${item.id}\\]:\\s*([^|]+)`);
+         const match = studentAnswer.match(regex);
+         if (match) {
+           const stAns = match[1].trim().toLowerCase();
+           if (!correctAnsArray.includes(stAns)) allCorrect = false;
+         } else {
+           allCorrect = false;
+         }
+       });
+       return allCorrect;
+    }
+    return false;
+  };
+
   const handleSimpleAnswer = (qId, value) => {
     if (lockedQuestions[qId]) return;
     setLocalAnswers(prev => ({ ...prev, [qId]: value }));
@@ -130,30 +277,57 @@ export default function DoAssignment() {
   };
 
   useEffect(() => {
-    if (!shuffledQuiz || Object.keys(localAnswers).length === 0 || isSubmitted) return;
+    if (!shuffledQuiz || !isInitialized || !currentSessionId || isSubmitted) return;
 
     const syncAnswers = async () => {
       const formattedAnswers = {};
+      let completedCount = 0;
+
       shuffledQuiz.questions.forEach(q => {
         const ans = localAnswers[q.id];
         if (ans === undefined || ans === null) return;
 
+        let isEmpty = true;
         if (q.type === 'MCQ') {
           formattedAnswers[q.id] = ans.map(i => String.fromCharCode(65 + i)).join(', ');
+          if (ans.length > 0) isEmpty = false;
         } else if (q.type === 'GAP_FILL_PARAGRAPH' || q.type === 'GAP_FILL_DIAGRAM') {
           const parts = [];
-          Object.keys(ans).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(k => parts.push(`[${k}]: ${ans[k]}`));
+          Object.keys(ans).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(k => {
+             if (ans[k] && ans[k].trim() !== '') isEmpty = false;
+             parts.push(`[${k}]: ${ans[k]}`);
+          });
           formattedAnswers[q.id] = parts.join(' | ');
         } else {
           formattedAnswers[q.id] = ans;
+          if (ans.trim() !== '') isEmpty = false;
         }
+
+        if (!isEmpty) completedCount++;
       });
+
+      let correctCount = 0;
+      shuffledQuiz.questions.forEach(q => {
+        if (evaluateAnswer(q, formattedAnswers[q.id])) correctCount++;
+      });
+      const currentScore = Math.round((correctCount / shuffledQuiz.questions.length) * 100) || 0;
+
+      const updatedSessions = [...sessionsRef.current];
+      const idx = updatedSessions.findIndex(s => s.sessionId === currentSessionId);
+      if (idx >= 0) {
+          updatedSessions[idx].exitTime = new Date().toISOString();
+          updatedSessions[idx].completedCount = completedCount;
+          updatedSessions[idx].score = currentScore;
+      }
+      sessionsRef.current = updatedSessions; 
 
       try {
         await setDoc(doc(db, `rooms/${roomId}/submissions`, studentId), {
           studentId: studentId,
           studentName: studentId,
+          rawAnswers: localAnswers,
           answers: formattedAnswers,
+          sessions: updatedSessions,
           lastUpdated: new Date().toISOString()
         }, { merge: true });
       } catch (error) { 
@@ -166,7 +340,7 @@ export default function DoAssignment() {
     }, 800); 
 
     return () => clearTimeout(timeoutId);
-  }, [localAnswers, shuffledQuiz, roomId, studentId, isSubmitted]);
+  }, [localAnswers, shuffledQuiz, isInitialized, currentSessionId, isSubmitted, roomId, studentId]);
 
   const handleSubmit = async () => {
     if (!window.confirm("Bạn có chắc chắn muốn nộp bài không?")) return;
@@ -207,6 +381,114 @@ export default function DoAssignment() {
     }
   };
 
+  // --- CÁC COMPONENT GIAO DIỆN CHUNG ---
+  
+  // 1. Cửa Sổ Verification Modal
+  const verificationModal = showVerification && (
+    <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.4)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', zIndex: 99999, paddingTop: '10vh', paddingLeft: '15px', paddingRight: '15px' }}>
+      <div style={{ backgroundColor: 'white', borderRadius: '12px', width: '100%', maxWidth: '380px', boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #f1f5f9' }}>
+          <h2 style={{ margin: 0, color: '#64748b', fontSize: '18px', fontWeight: '500' }}>Login Verification</h2>
+          <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px', display: 'flex', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#ef4444'} onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}>
+            <SvgIcons.Close />
+          </button>
+        </div>
+        <div style={{ padding: '24px 20px' }}>
+          <p style={{ fontSize: '16px', color: '#334155', margin: '0 0 24px 0' }}>Are you <span style={{fontWeight: '700', color: '#003366'}}>{studentId}</span>?</p>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button onClick={() => setShowVerification(false)} style={{ flex: 1, backgroundColor: '#003366', color: 'white', border: 'none', padding: '12px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', fontSize: '14px', transition: 'background 0.2s', boxShadow: '0 2px 4px rgba(0,51,102,0.2)' }}>YES</button>
+            <button onClick={handleLogout} style={{ flex: 1, backgroundColor: 'white', color: '#003366', border: '1px solid #003366', padding: '12px', borderRadius: '6px', fontWeight: '700', cursor: 'pointer', fontSize: '14px', transition: 'background 0.2s' }}>NO</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  // 2. Header Có Hamburger Menu
+  const appHeader = (titleText) => (
+    <header style={{ backgroundColor: 'white', padding: isMobile ? '16px' : '20px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 50, borderBottom: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
+      <div>
+        <h1 style={{ fontSize: isMobile ? '18px' : '22px', margin: 0, fontWeight: '800', color: '#003366', textTransform: 'uppercase' }}>{titleText}</h1>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center' }}>
+        <div style={{ position: 'relative' }} ref={menuRef}>
+          <button 
+            onClick={() => setShowMenu(!showMenu)} 
+            style={{ background: 'none', border: 'none', color: '#003366', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px' }}
+          >
+            <SvgIcons.Menu />
+          </button>
+
+          {showMenu && (
+            <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '8px', backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '12px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)', width: '220px', zIndex: 100, overflow: 'hidden' }}>
+              <div style={{ padding: '16px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ color: '#94a3b8', display: 'flex' }}><SvgIcons.User /></div>
+                <span style={{ fontWeight: '700', color: '#003366', fontSize: '15px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{studentId}</span>
+              </div>
+              <button 
+                onClick={() => { setShowMenu(false); window.location.reload(); }} 
+                style={{ width: '100%', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', background: 'none', border: 'none', borderBottom: '1px solid #f1f5f9', cursor: 'pointer', color: '#334155', fontSize: '14px', fontWeight: '600', textAlign: 'left', transition: 'background 0.2s' }} 
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'} 
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+              >
+                <span style={{ color: '#64748b', display: 'flex' }}><SvgIcons.Refresh /></span> Refresh
+              </button>
+              <button 
+                onClick={handleLogout} 
+                style={{ width: '100%', padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '14px', fontWeight: '600', textAlign: 'left', transition: 'background 0.2s' }} 
+                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#fef2f2'} 
+                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
+              >
+                <span style={{ color: '#ef4444', display: 'flex' }}><SvgIcons.LogOut /></span> Log Out
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </header>
+  );
+
+  // --- RENDERS DỰA VÀO TRẠNG THÁI (WAITING, SUBMITTED, DOING) ---
+  
+  if (!shuffledQuiz) {
+    return (
+      <div style={{ backgroundColor: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        {verificationModal}
+        {appHeader(roomId)}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ marginBottom: '24px', animation: 'pulse 2s infinite' }}><SvgIcons.Wait /></div>
+          <h2 style={{ fontWeight: '800', margin: '0 0 12px 0', textAlign: 'center', fontSize: '22px', color: '#003366' }}>Đang chờ giáo viên phát bài...</h2>
+          <p style={{ color: '#64748b', textAlign: 'center' }}>Phòng: <span style={{ fontWeight: '700', color: '#003366' }}>{roomId}</span></p>
+        </div>
+      </div>
+    );
+  }
+
+  if (isSubmitted) {
+    return (
+      <div style={{ backgroundColor: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        {verificationModal}
+        {appHeader(shuffledQuiz.title)}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ marginBottom: '24px' }}><SvgIcons.CheckBig /></div>
+          <h2 style={{ fontWeight: '800', margin: '0 0 12px 0', fontSize: '22px', color: '#003366' }}>Đã nộp bài thành công!</h2>
+          <p style={{ color: '#64748b', textAlign: 'center', maxWidth: '400px', lineHeight: '1.6' }}>Kết quả của bạn đã được gửi đến giáo viên. Vui lòng giữ nguyên màn hình và chờ hoạt động tiếp theo.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const isTeacherPaced = sessionInfo?.mode === 'Teacher Paced';
+  const currentQuestionIndex = sessionInfo?.currentQuestionIndex || 0;
+  const isInstantFeedback = sessionInfo?.mode === 'Instant Feedback';
+  const showFeedback = sessionInfo?.settings?.showFeedback;
+
+  let globalQuestionIndex = 1;
+
+  const sections = shuffledQuiz.sections && shuffledQuiz.sections.length > 0 
+    ? shuffledQuiz.sections 
+    : [{ id: 'default', type: shuffledQuiz.quizMode === 'PASSAGE' ? 'PASSAGE' : 'SINGLE', title: shuffledQuiz.passageTitle || 'Quiz Assignment', passageContent: shuffledQuiz.passage }];
+
   const renderTextWithGaps = (text, qId) => {
     if (!text) return null;
     const formattedText = text.replace(/\n/g, '<br/>');
@@ -243,56 +525,22 @@ export default function DoAssignment() {
     );
   };
 
-  if (!shuffledQuiz) {
-    return (
-      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', color: '#003366', padding: '20px' }}>
-        <div style={{ marginBottom: '24px', animation: 'pulse 2s infinite' }}><SvgIcons.Wait /></div>
-        <h2 style={{ fontWeight: '800', margin: '0 0 12px 0', textAlign: 'center', fontSize: '22px' }}>Đang chờ giáo viên phát bài...</h2>
-        <p style={{ color: '#64748b', marginBottom: '32px', textAlign: 'center' }}>Phòng: <span style={{ fontWeight: '700', color: '#003366' }}>{roomId}</span> | Học viên: <span style={{ fontWeight: '700', color: '#003366' }}>{studentId}</span></p>
-        <button onClick={() => navigate('/student/login')} style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: 'white', color: '#ef4444', border: '1px solid #e2e8f0', padding: '12px 24px', borderRadius: '100px', fontWeight: '700', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-          <SvgIcons.LogOut /> Thoát phòng
-        </button>
-      </div>
-    );
-  }
-
-  if (isSubmitted) {
-    return (
-      <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', color: '#003366', padding: '20px' }}>
-        <div style={{ marginBottom: '24px' }}><SvgIcons.CheckBig /></div>
-        <h2 style={{ fontWeight: '800', margin: '0 0 12px 0', fontSize: '22px' }}>Đã nộp bài thành công!</h2>
-        <p style={{ color: '#64748b', textAlign: 'center', maxWidth: '400px', lineHeight: '1.6' }}>Kết quả của bạn đã được gửi đến giáo viên. Vui lòng giữ nguyên màn hình và chờ hoạt động tiếp theo.</p>
-      </div>
-    );
-  }
-
-  const sections = shuffledQuiz.sections && shuffledQuiz.sections.length > 0 
-    ? shuffledQuiz.sections 
-    : [{ id: 'default', type: shuffledQuiz.quizMode === 'PASSAGE' ? 'PASSAGE' : 'SINGLE', title: shuffledQuiz.passageTitle || 'Quiz Assignment', passageContent: shuffledQuiz.passage }];
-
-  const isInstantFeedback = sessionInfo?.mode === 'Instant Feedback';
-  const showFeedback = sessionInfo?.settings?.showFeedback;
-
-  let globalQuestionIndex = 1;
-
   return (
     <div style={{ backgroundColor: '#f8fafc', minHeight: '100vh', paddingBottom: '80px', fontFamily: "'Josefin Sans', sans-serif" }}>
-      
-      <header style={{ backgroundColor: 'white', padding: isMobile ? '16px' : '20px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 50, borderBottom: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
-        <div>
-          <h1 style={{ fontSize: isMobile ? '18px' : '22px', margin: 0, fontWeight: '800', color: '#003366', textTransform: 'uppercase' }}>{shuffledQuiz.title}</h1>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ fontSize: '14px', fontWeight: '700', color: '#003366', backgroundColor: '#f1f5f9', padding: '6px 12px', borderRadius: '100px', whiteSpace: 'nowrap' }}>
-            {studentId}
-          </div>
-        </div>
-      </header>
+      {verificationModal}
+      {appHeader(shuffledQuiz.title)}
 
       <div style={{ maxWidth: '840px', margin: '0 auto', padding: isMobile ? '20px 15px' : '40px 20px' }}>
         
         {sections.map((section, sIdx) => {
-          const secQuestions = (shuffledQuiz.questions || []).filter(q => q.sectionId === section.id || (!q.sectionId && section.id === 'default'));
+          const targetQ = shuffledQuiz.questions[currentQuestionIndex];
+          if (isTeacherPaced && (!targetQ || (section.id !== targetQ.sectionId && !(section.id === 'default' && !targetQ.sectionId)))) return null;
+
+          let secQuestions = (shuffledQuiz.questions || []).filter(q => q.sectionId === section.id || (!q.sectionId && section.id === 'default'));
+          if (isTeacherPaced) {
+            secQuestions = [targetQ];
+          }
+
           if (secQuestions.length === 0 && !section.passageContent) return null;
 
           return (
@@ -320,9 +568,9 @@ export default function DoAssignment() {
               )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                {secQuestions.map((q, qIdx) => {
+                {secQuestions.map((q) => {
                   const isLocked = lockedQuestions[q.id];
-                  const currentQNum = globalQuestionIndex++;
+                  const currentQNum = isTeacherPaced ? currentQuestionIndex + 1 : globalQuestionIndex++;
 
                   return (
                     <div key={q.id} style={{ backgroundColor: 'white', padding: isMobile ? '20px' : '30px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)', opacity: isLocked ? 0.9 : 1 }}>
@@ -486,17 +734,24 @@ export default function DoAssignment() {
           );
         })}
 
-        {/* NÚT SUBMIT TOÀN BỘ BÀI */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginTop: '50px' }}>
-          <button 
-            onClick={handleSubmit} 
-            style={{ width: isMobile ? '100%' : 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', backgroundColor: '#003366', color: 'white', fontWeight: '800', padding: '16px 40px', fontSize: '16px', borderRadius: '100px', cursor: 'pointer', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,51,102,0.3)', transition: 'all 0.2s' }}
-            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-          >
-            <SvgIcons.Submit /> Submit Assignment
-          </button>
-        </div>
+        {/* NÚT SUBMIT TOÀN BỘ BÀI HOẶC THÔNG BÁO CHO TEACHER PACED */}
+        {isTeacherPaced ? (
+          <div style={{ textAlign: 'center', marginTop: '40px', padding: '20px', backgroundColor: '#e0f2fe', borderRadius: '12px', border: '1px solid #bae6fd', color: '#0369a1', fontWeight: '700', fontSize: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+            <div style={{ animation: 'pulse 2s infinite' }}><SvgIcons.Wait /></div>
+            Chế độ Teacher Paced: Vui lòng đợi giáo viên chuyển sang câu hỏi tiếp theo...
+          </div>
+        ) : (
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '50px' }}>
+            <button 
+              onClick={handleSubmit} 
+              style={{ width: isMobile ? '100%' : 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', backgroundColor: '#003366', color: 'white', fontWeight: '800', padding: '16px 40px', fontSize: '16px', borderRadius: '100px', cursor: 'pointer', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,51,102,0.3)', transition: 'all 0.2s' }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+            >
+              <SvgIcons.Submit /> Submit Assignment
+            </button>
+          </div>
+        )}
         
       </div>
     </div>

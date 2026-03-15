@@ -13,7 +13,6 @@ const SvgIcons = {
   Search: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
 };
 
-// --- COMPONENT: TOGGLE SWITCH ---
 const Toggle = ({ label, checked, onChange }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => onChange(!checked)}>
     <div style={{ width: '36px', height: '20px', borderRadius: '10px', backgroundColor: checked ? '#003366' : '#cbd5e1', position: 'relative', transition: 'all 0.2s' }}>
@@ -23,12 +22,49 @@ const Toggle = ({ label, checked, onChange }) => (
   </div>
 );
 
+// Format Correct Answer Helper
+const getCorrectAnswerDisplay = (q) => {
+  if (q.type === 'MCQ') return (q.correctOptions || []).map(i => String.fromCharCode(65 + i)).join(', ');
+  if (['EVALUATION', 'MATCHING'].includes(q.type)) return q.correctOption || q.correctMatch || '';
+  if (q.type === 'SAQ') return q.correctText || '';
+  if (q.type.startsWith('GAP_FILL')) {
+    const items = q.type === 'GAP_FILL_PARAGRAPH' ? q.gaps : q.labels;
+    if (!items || items.length === 0) return '';
+    return items.map(item => `[${item.id}]: ${item.answerString}`).join(' | ');
+  }
+  return '';
+};
+
+// Hàm chuyển ảnh thành Base64 để nhúng thẳng vào file HTML (chạy offline vẫn có ảnh)
+const getBase64FromUrl = async (url) => {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error('Failed to load logo for export:', error);
+    return null;
+  }
+};
+
 // --- COMPONENT: REPORT DETAIL VIEW ---
 const ReportDetailView = ({ report, onBack }) => {
   const [showNames, setShowNames] = useState(true);
   const [showResponses, setShowResponses] = useState(true);
   const [showResults, setShowResults] = useState(true);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  // Export Modal States
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportScope, setExportScope] = useState('all');
+  const [exportStudents, setExportStudents] = useState([]);
+  const [includeAnswers, setIncludeAnswers] = useState(true);
+  const [includeExplanations, setIncludeExplanations] = useState(true);
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -37,8 +73,6 @@ const ReportDetailView = ({ report, onBack }) => {
   }, []);
 
   const dateStr = new Date(report.date).toLocaleString('vi-VN');
-  
-  // Lấy danh sách câu hỏi và danh sách học sinh đã format từ CSDL
   const questions = report.questions || [];
   const submissions = report.submissions || [];
 
@@ -50,14 +84,233 @@ const ReportDetailView = ({ report, onBack }) => {
   const avgScore = totalParticipated > 0 ? Math.round(totalScore / totalParticipated) : 0; 
   const passRate = totalParticipated > 0 ? Math.round((submissions.filter(s => s.score >= 50).length / totalParticipated) * 100) : 0; 
 
+  const handleToggleExportStudent = (id) => {
+    setExportStudents(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
+
+  // HÀM XUẤT FILE HTML CHUYÊN SÂU ĐỂ IN (Giống Socrative/Showbie, Tích hợp Logo)
+  const handleExportHTML = async () => {
+    const studentsToExport = exportScope === 'all' 
+      ? submissions.filter(s => s.submitted) 
+      : submissions.filter(s => exportStudents.includes(s.studentId) && s.submitted);
+
+    if (studentsToExport.length === 0) {
+      alert("Không có dữ liệu học viên để xuất!");
+      return;
+    }
+
+    setIsExporting(true);
+
+    // Lấy ảnh Logo và chuyển sang Base64
+    const logoBase64 = await getBase64FromUrl('/BA LOGO.png');
+    const logoHtml = logoBase64 ? `<img src="${logoBase64}" alt="BA Logo" style="height: 65px; object-fit: contain;" />` : '';
+
+    let htmlContent = `
+      <!DOCTYPE html>
+      <html lang="vi">
+      <head>
+        <meta charset="UTF-8">
+        <title>Report - ${report.name}</title>
+        <style>
+          body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #333; line-height: 1.6; margin: 0; padding: 0; background: #f4f4f9; }
+          .page { max-width: 800px; margin: 20px auto; padding: 40px; background: white; box-shadow: 0 4px 10px rgba(0,0,0,0.1); border-radius: 8px; page-break-after: always; }
+          @media print { body { background: white; } .page { margin: 0; padding: 20px; box-shadow: none; border-radius: 0; } }
+          h1, h2, h3 { color: #003366; }
+          .header-box { border-bottom: 3px solid #003366; padding-bottom: 15px; margin-bottom: 25px; display: flex; justify-content: space-between; align-items: flex-end; }
+          .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; font-size: 14px; }
+          .session-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 13px; }
+          .session-table th, .session-table td { border: 1px solid #ddd; padding: 8px 12px; text-align: left; }
+          .session-table th { background-color: #f1f5f9; color: #003366; }
+          .question-box { margin-bottom: 25px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; page-break-inside: avoid; }
+          .q-title { font-weight: bold; color: #003366; margin-bottom: 10px; display: flex; justify-content: space-between; }
+          .q-text { margin-bottom: 15px; font-size: 15px; }
+          .answer-row { display: flex; gap: 10px; align-items: baseline; margin-bottom: 8px; font-size: 14px; }
+          .badge { padding: 3px 8px; border-radius: 4px; font-weight: bold; font-size: 12px; }
+          .correct { background: #dcfce7; color: #15803d; border: 1px solid #16a34a; }
+          .incorrect { background: #fee2e2; color: #b91c1c; border: 1px solid #dc2626; }
+          .explanation-box { margin-top: 15px; padding: 12px; background: #fef3c7; border-left: 4px solid #d97706; font-size: 13.5px; color: #92400e; }
+        </style>
+      </head>
+      <body>
+    `;
+
+    studentsToExport.forEach(student => {
+      // 1. Tính toán Sessions
+      let totalMs = 0;
+      let sessionRows = '';
+      const sessions = student.sessions || [];
+
+      sessions.forEach((sess, idx) => {
+        const start = new Date(sess.loginTime);
+        const end = new Date(sess.exitTime);
+        const dur = Math.max(0, end - start);
+        totalMs += dur;
+        
+        const m = Math.floor(dur / 60000);
+        const s = Math.floor((dur % 60000) / 1000);
+        const durStr = `${m}m ${s}s`;
+
+        sessionRows += `
+          <tr>
+            <td>${idx + 1}</td>
+            <td>${start.toLocaleTimeString('vi-VN')}</td>
+            <td>${sess.exitTime ? end.toLocaleTimeString('vi-VN') : '--:--'}</td>
+            <td>${durStr}</td>
+            <td>${sess.completedCount !== undefined ? sess.completedCount + ' câu' : sess.score + '%'}</td>
+          </tr>
+        `;
+      });
+
+      const totalMins = Math.floor(totalMs / 60000);
+      const totalSecs = Math.floor((totalMs % 60000) / 1000);
+      const totalDurStr = `${totalMins} phút ${totalSecs} giây`;
+
+      // 2. Render Header Sinh Viên với Logo
+      htmlContent += `
+        <div class="page">
+          <div class="header-box">
+            <div>
+              <h1 style="margin: 0 0 10px 0; font-size: 24px;">${report.name}</h1>
+              <h2 style="margin: 0; font-size: 18px; color: #475569;">Học viên: <span style="color: #003366;">${student.lastName || ''} ${student.firstName || student.studentId}</span></h2>
+            </div>
+            <div>
+              ${logoHtml}
+            </div>
+          </div>
+          
+          <div class="info-grid">
+            <div><strong>Phòng thi:</strong> ${report.room}</div>
+            <div><strong>Ngày làm bài:</strong> ${new Date(report.date).toLocaleDateString('vi-VN')}</div>
+            <div><strong>Điểm số:</strong> <span style="font-size:18px; color:#15803d; font-weight:bold;">${student.score}%</span></div>
+            <div><strong>Tổng thời gian:</strong> ${totalDurStr}</div>
+            <div><strong>Số lần đăng nhập:</strong> ${sessions.length} lần</div>
+          </div>
+
+          <h3>Chi tiết Lịch sử Đăng nhập</h3>
+          <table class="session-table">
+            <thead>
+              <tr><th>Đợt</th><th>Vào lúc</th><th>Ra lúc</th><th>Thời gian</th><th>Tích lũy</th></tr>
+            </thead>
+            <tbody>
+              ${sessionRows || '<tr><td colSpan="5" style="text-align:center;">Không có dữ liệu session.</td></tr>'}
+            </tbody>
+          </table>
+
+          <h3>Chi tiết Bài làm</h3>
+      `;
+
+      // 3. Render từng câu hỏi
+      questions.forEach((q, idx) => {
+        const stAnsObj = student.answers?.[q.id];
+        const stAns = stAnsObj?.answer || '<em>Chưa làm</em>';
+        const isCorrect = stAnsObj?.isCorrect;
+        const badge = isCorrect ? '<span class="badge correct">ĐÚNG</span>' : '<span class="badge incorrect">SAI</span>';
+
+        const correctAnsHtml = includeAnswers ? `
+          <div class="answer-row" style="color: #15803d;">
+            <strong>Đáp án đúng:</strong> <span>${getCorrectAnswerDisplay(q) || 'N/A'}</span>
+          </div>
+        ` : '';
+
+        const explanationHtml = (includeExplanations && q.explanation) ? `
+          <div class="explanation-box">
+            <strong>Giải thích:</strong><br/>
+            ${q.explanation}
+          </div>
+        ` : '';
+
+        htmlContent += `
+          <div class="question-box">
+            <div class="q-title">
+              <span>Câu ${idx + 1} (${q.type.replace(/_/g, ' ')})</span>
+            </div>
+            <div class="q-text">${q.text}</div>
+            <div class="answer-row">
+              <strong>Trả lời:</strong> <span>${stAns}</span> ${stAns !== '<em>Chưa làm</em>' ? badge : ''}
+            </div>
+            ${correctAnsHtml}
+            ${explanationHtml}
+          </div>
+        `;
+      });
+
+      htmlContent += `</div>`; 
+    });
+
+    htmlContent += `</body></html>`;
+
+    // 4. Download file
+    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Report_${report.name.replace(/\s+/g, '_')}_${new Date().getTime()}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    setIsExporting(false);
+    setShowExportModal(false);
+  };
+
   return (
-    <div style={{ padding: isMobile ? '15px' : '30px', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
+    <div style={{ padding: isMobile ? '15px' : '30px', backgroundColor: '#f8fafc', minHeight: '100vh', fontFamily: "'Josefin Sans', sans-serif" }}>
+      
+      {/* MODAL EXPORT */}
+      {showExportModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '15px', boxSizing: 'border-box' }}>
+          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '16px', width: '100%', maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
+            <h3 style={{ color: '#003366', marginTop: 0, marginBottom: '20px', fontWeight: '800', fontSize: '20px' }}>Xuất Báo Cáo (HTML)</h3>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontWeight: '700', marginBottom: '10px', color: '#003366' }}>Lựa chọn học viên:</label>
+              <div style={{ display: 'flex', gap: '20px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input type="radio" name="exportScope" value="all" checked={exportScope === 'all'} onChange={() => setExportScope('all')} style={{ accentColor: '#003366' }} /> Tất cả
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                  <input type="radio" name="exportScope" value="specific" checked={exportScope === 'specific'} onChange={() => setExportScope('specific')} style={{ accentColor: '#003366' }} /> Chọn cụ thể
+                </label>
+              </div>
+            </div>
+
+            {exportScope === 'specific' && (
+              <div style={{ maxHeight: '150px', overflowY: 'auto', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '10px', marginBottom: '20px' }}>
+                {submissions.filter(s => s.submitted).map(s => (
+                  <label key={s.studentId} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '6px 0', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={exportStudents.includes(s.studentId)} onChange={() => handleToggleExportStudent(s.studentId)} style={{ accentColor: '#003366' }} />
+                    {s.lastName || ''} {s.firstName || s.studentId}
+                  </label>
+                ))}
+              </div>
+            )}
+
+            <div style={{ marginBottom: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <label style={{ display: 'block', fontWeight: '700', color: '#003366' }}>Tùy chọn hiển thị:</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={includeAnswers} onChange={e => setIncludeAnswers(e.target.checked)} style={{ accentColor: '#003366' }} /> Bao gồm đáp án đúng
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                <input type="checkbox" checked={includeExplanations} onChange={e => setIncludeExplanations(e.target.checked)} style={{ accentColor: '#003366' }} /> Bao gồm giải thích chi tiết
+              </label>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '30px' }}>
+              <button onClick={() => setShowExportModal(false)} disabled={isExporting} style={{ padding: '10px 20px', borderRadius: '100px', border: '1px solid #cbd5e1', backgroundColor: 'white', color: '#64748b', fontWeight: '700', cursor: 'pointer' }}>Hủy</button>
+              <button onClick={handleExportHTML} disabled={isExporting} style={{ padding: '10px 20px', borderRadius: '100px', border: 'none', backgroundColor: '#003366', color: 'white', fontWeight: '700', cursor: isExporting ? 'wait' : 'pointer', boxShadow: '0 4px 6px -1px rgba(0,51,102,0.2)' }}>
+                {isExporting ? 'Đang xuất...' : 'Xuất File HTML'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* HEADER DETAIL */}
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'flex-start', marginBottom: '30px', gap: '20px' }}>
         <div>
           <button onClick={onBack} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', marginBottom: '12px', fontWeight: '700', fontSize: '14px', padding: 0, transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#003366'} onMouseLeave={e => e.currentTarget.style.color = '#64748b'}>
-            <SvgIcons.Back /> Back to Reports
+            <SvgIcons.Back /> Quay lại Reports
           </button>
           <h2 style={{ color: '#003366', margin: '0 0 8px 0', fontSize: isMobile ? '22px' : '28px', fontWeight: '800', textTransform: 'uppercase', lineHeight: '1.3' }}>{report.name}</h2>
           <p style={{ color: '#64748b', margin: 0, fontWeight: '500', fontSize: '14px' }}>Date: {dateStr} • Room: <span style={{ color: '#003366', fontWeight: '700' }}>{report.room}</span></p>
@@ -66,7 +319,7 @@ const ReportDetailView = ({ report, onBack }) => {
           <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flex: 1, backgroundColor: 'white', color: '#003366', border: '1px solid #cbd5e1', padding: '12px 20px', borderRadius: '100px', fontWeight: '700', cursor: 'pointer', fontSize: '14px', transition: 'all 0.2s' }}>
             <SvgIcons.Mail /> Email
           </button>
-          <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flex: 1, backgroundColor: '#003366', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '100px', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(0,51,102,0.2)', fontSize: '14px', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>
+          <button onClick={() => setShowExportModal(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flex: 1, backgroundColor: '#003366', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '100px', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(0,51,102,0.2)', fontSize: '14px', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>
             <SvgIcons.Download /> Export
           </button>
         </div>
@@ -214,7 +467,7 @@ export default function Reports() {
 
   // --- RENDER DANH SÁCH REPORT (TABLE VIEW) ---
   return (
-    <div style={{ padding: isMobile ? '15px' : '30px', backgroundColor: '#f8fafc', minHeight: '100vh' }}>
+    <div style={{ padding: isMobile ? '15px' : '30px', backgroundColor: '#f8fafc', minHeight: '100vh', fontFamily: "'Josefin Sans', sans-serif" }}>
       <h2 style={{ color: '#003366', margin: '0 0 24px 0', fontSize: isMobile ? '24px' : '28px', fontWeight: '800' }}>Reports</h2>
       
       {/* TOOLBAR: Search, Filter & Actions */}
