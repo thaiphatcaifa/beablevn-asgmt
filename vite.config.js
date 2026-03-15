@@ -11,7 +11,7 @@ export default defineConfig({
       includeAssets: ['BA LOGO.png'], // Các tài nguyên tĩnh cần cache
       manifest: {
         name: 'BAVN ASGMT',
-        short_name: 'BAVN',
+        short_name: 'BAVN ASGMT',
         description: 'Ứng dụng BAVN Assignment',
         theme_color: '#ffffff', // Màu nền chủ đạo của app (bạn có thể đổi theo UI của bạn)
         background_color: '#ffffff',
