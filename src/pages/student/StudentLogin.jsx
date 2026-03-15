@@ -62,14 +62,14 @@ export default function StudentLogin() {
           <div style={{ marginBottom: '20px' }}>
             <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#003366', textTransform: 'uppercase', marginBottom: '6px' }}>Mã Lớp Học (Room Code)</label>
             <input 
-              type="text" placeholder="Ví dụ: BAGR903" value={roomCode} onChange={(e) => setRoomCode(e.target.value)} required 
+              type="text" placeholder="Ví dụ: IE0301" value={roomCode} onChange={(e) => setRoomCode(e.target.value)} required 
               style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: '12px', outline: 'none', backgroundColor: 'white', color: '#334155', fontWeight: '700', fontSize: '1.2rem', textAlign: 'center', letterSpacing: '2px' }}
             />
           </div>
           <div style={{ marginBottom: '30px' }}>
             <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '700', color: '#003366', textTransform: 'uppercase', marginBottom: '6px' }}>Mã số / Tên Học Viên</label>
             <input 
-              type="text" placeholder="Ví dụ: PHU180711" value={studentId} onChange={(e) => setStudentId(e.target.value)} required 
+              type="text" placeholder="Ví dụ: BAK010188" value={studentId} onChange={(e) => setStudentId(e.target.value)} required 
               style={{ width: '100%', padding: '12px 16px', border: '1px solid #e2e8f0', borderRadius: '12px', outline: 'none', backgroundColor: 'white', color: '#334155', fontWeight: '600', fontSize: '1rem', textAlign: 'center' }}
             />
           </div>
