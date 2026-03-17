@@ -141,7 +141,17 @@ export default function TeacherDashboard() {
             </nav>
 
             <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '20px', marginTop: 'auto' }}>
-              <Link to="/" onClick={() => { localStorage.removeItem('activeRoom'); setIsMenuOpen(false); }} style={{ color: '#ef4444', textDecoration: 'none', fontWeight: '800', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', transition: 'opacity 0.2s' }} onMouseEnter={e => e.currentTarget.style.opacity = 0.7} onMouseLeave={e => e.currentTarget.style.opacity = 1}>
+              <Link 
+                to="/" 
+                onClick={() => { 
+                  localStorage.removeItem('activeRoom'); 
+                  localStorage.removeItem('teacherAuth'); 
+                  setIsMenuOpen(false); 
+                }} 
+                style={{ color: '#ef4444', textDecoration: 'none', fontWeight: '800', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px', transition: 'opacity 0.2s' }} 
+                onMouseEnter={e => e.currentTarget.style.opacity = 0.7} 
+                onMouseLeave={e => e.currentTarget.style.opacity = 1}
+              >
                 <SvgIcons.LogOut /> Log Out
               </Link>
             </div>

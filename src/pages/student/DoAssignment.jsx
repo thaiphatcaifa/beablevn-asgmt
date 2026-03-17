@@ -35,7 +35,7 @@ export default function DoAssignment() {
   // Room & Data States
   const [roomData, setRoomData] = useState(null);
   
-  // Quiz States 
+  // Quiz States
   const [quiz, setQuiz] = useState(null);
   const [shuffledQuiz, setShuffledQuiz] = useState(null);
   const [sessionInfo, setSessionInfo] = useState(null);
@@ -125,7 +125,7 @@ export default function DoAssignment() {
 
 
   // ==========================================
-  // LOGIC QUIZ 
+  // LOGIC QUIZ
   // ==========================================
   useEffect(() => {
     if (sessionInfo?.startTime) {
@@ -152,6 +152,7 @@ export default function DoAssignment() {
     };
 
     let processedQuestions = [...(quiz.questions || [])];
+
     processedQuestions = processedQuestions.map(q => {
       let displayOptions = (q.options || []).map((text, originalIndex) => ({ text, originalIndex }));
       if (sessionInfo?.settings?.shuffleAnswers && q.type === 'MCQ') {
@@ -170,11 +171,14 @@ export default function DoAssignment() {
       });
       processedQuestions = finalQuestions;
     }
+
     setShuffledQuiz({ ...quiz, questions: processedQuestions });
   }, [quiz, sessionInfo, shuffledQuiz]);
 
+  // --- LOGIC ONE ATTEMPT & KHỞI TẠO PHIÊN (SESSION) ---
   useEffect(() => {
     if (!shuffledQuiz || !sessionInfo || isInitialized) return;
+
     const initSession = async () => {
       const subRef = doc(db, `rooms/${roomId}/submissions`, studentId);
       const subSnap = await getDoc(subRef);
@@ -213,6 +217,7 @@ export default function DoAssignment() {
       }
       setLocalAnswers(prevRaw); setIsSubmitted(isSub); setIsInitialized(true);
     };
+
     initSession();
   }, [shuffledQuiz, sessionInfo, isInitialized, roomId, studentId]);
 
@@ -237,6 +242,28 @@ export default function DoAssignment() {
     return false;
   };
 
+  // Helper hiển thị kết quả đáp án đúng sau khi Chốt
+  const getCorrectAnswerDisplayForStudent = (q) => {
+    if (q.type === 'MCQ') {
+       if(!q.displayOptions) return '';
+       const correctLetters = [];
+       q.displayOptions.forEach((opt, index) => {
+          if ((q.correctOptions || []).includes(opt.originalIndex)) {
+             correctLetters.push(String.fromCharCode(65 + index));
+          }
+       });
+       return correctLetters.join(', ');
+    }
+    if (['EVALUATION', 'MATCHING'].includes(q.type)) return q.correctOption || q.correctMatch || '';
+    if (q.type === 'SAQ') return q.correctText || '';
+    if (q.type.startsWith('GAP_FILL')) {
+      const items = q.type === 'GAP_FILL_PARAGRAPH' ? q.gaps : q.labels;
+      if (!items || items.length === 0) return '';
+      return items.map(item => `[${item.id}]: ${item.answerString}`).join(' | ');
+    }
+    return '';
+  };
+
   const handleSimpleAnswer = (qId, value) => { if (!lockedQuestions[qId]) setLocalAnswers(prev => ({ ...prev, [qId]: value })); };
   const handleToggleMCQ = (qId, originalIdx) => {
     if (lockedQuestions[qId]) return;
@@ -246,8 +273,11 @@ export default function DoAssignment() {
     });
   };
   const handleGapFillChange = (qId, gapId, value) => { if (!lockedQuestions[qId]) setLocalAnswers(prev => ({ ...prev, [qId]: { ...(prev[qId] || {}), [gapId]: value } })); };
+  
   const handleLockQuestion = (qId) => {
-    if (!localAnswers[qId] || (Array.isArray(localAnswers[qId]) && localAnswers[qId].length === 0) || (typeof localAnswers[qId] === 'object' && !Array.isArray(localAnswers[qId]) && Object.keys(localAnswers[qId]).length === 0)) return alert("Vui lòng chọn hoặc nhập đáp án trước khi chốt!");
+    if (!localAnswers[qId] || (Array.isArray(localAnswers[qId]) && localAnswers[qId].length === 0) || (typeof localAnswers[qId] === 'object' && !Array.isArray(localAnswers[qId]) && Object.keys(localAnswers[qId]).length === 0)) {
+      return alert("Vui lòng chọn hoặc nhập đáp án trước khi chốt!");
+    }
     setLockedQuestions(prev => ({ ...prev, [qId]: true }));
   };
 
@@ -257,16 +287,26 @@ export default function DoAssignment() {
     const syncAnswers = async () => {
       const formattedAnswers = {};
       let completedCount = 0;
+
       shuffledQuiz.questions.forEach(q => {
         const ans = localAnswers[q.id];
         if (ans === undefined || ans === null) return;
+
         let isEmpty = true;
-        if (q.type === 'MCQ') { formattedAnswers[q.id] = ans.map(i => String.fromCharCode(65 + i)).join(', '); if (ans.length > 0) isEmpty = false; } 
-        else if (q.type === 'GAP_FILL_PARAGRAPH' || q.type === 'GAP_FILL_DIAGRAM') {
+        if (q.type === 'MCQ') {
+          formattedAnswers[q.id] = ans.map(i => String.fromCharCode(65 + i)).join(', ');
+          if (ans.length > 0) isEmpty = false;
+        } else if (q.type === 'GAP_FILL_PARAGRAPH' || q.type === 'GAP_FILL_DIAGRAM') {
           const parts = [];
-          Object.keys(ans).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(k => { if (ans[k] && ans[k].trim() !== '') isEmpty = false; parts.push(`[${k}]: ${ans[k]}`); });
+          Object.keys(ans).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(k => {
+             if (ans[k] && ans[k].trim() !== '') isEmpty = false;
+             parts.push(`[${k}]: ${ans[k]}`);
+          });
           formattedAnswers[q.id] = parts.join(' | ');
-        } else { formattedAnswers[q.id] = ans; if (ans.trim() !== '') isEmpty = false; }
+        } else {
+          formattedAnswers[q.id] = ans;
+          if (ans.trim() !== '') isEmpty = false;
+        }
         if (!isEmpty) completedCount++;
       });
 
@@ -276,7 +316,11 @@ export default function DoAssignment() {
 
       const updatedSessions = [...sessionsRef.current];
       const idx = updatedSessions.findIndex(s => s.sessionId === currentSessionId);
-      if (idx >= 0) { updatedSessions[idx].exitTime = new Date().toISOString(); updatedSessions[idx].completedCount = completedCount; updatedSessions[idx].score = currentScore; }
+      if (idx >= 0) { 
+        updatedSessions[idx].exitTime = new Date().toISOString(); 
+        updatedSessions[idx].completedCount = completedCount; 
+        updatedSessions[idx].score = currentScore; 
+      }
       sessionsRef.current = updatedSessions; 
 
       try {
@@ -318,7 +362,6 @@ export default function DoAssignment() {
     } catch (err) { console.log(err); }
   };
 
-  // LEARN MODE LOGIC
   const initLearnMode = () => {
     if (!vocabSet || vocabSet.cards.length === 0) return;
     const cards = [...vocabSet.cards].sort(() => 0.5 - Math.random());
@@ -345,10 +388,9 @@ export default function DoAssignment() {
     }
   };
 
-  // MATCH MODE LOGIC
   const initMatchMode = () => {
     if (!vocabSet) return;
-    const pairs = vocabSet.cards.slice(0, 6); // Tối đa 6 cặp 1 lần chơi
+    const pairs = vocabSet.cards.slice(0, 6); 
     let items = [];
     pairs.forEach(c => {
       items.push({ id: `t_${c.id}`, text: c.term, type: 'term', cardId: c.id, matched: false });
@@ -365,7 +407,6 @@ export default function DoAssignment() {
     if (matchSelected.id === item.id) { setMatchSelected(null); return; }
 
     if (matchSelected.cardId === item.cardId && matchSelected.type !== item.type) {
-      // Đúng
       const newItems = matchItems.map(i => i.cardId === item.cardId ? { ...i, matched: true } : i);
       setMatchItems(newItems);
       setMatchSelected(null);
@@ -373,10 +414,9 @@ export default function DoAssignment() {
       if (newItems.every(i => i.matched)) {
         const timeTaken = Math.round((Date.now() - matchStartTime) / 1000);
         alert(`Hoàn thành trong ${timeTaken} giây!`);
-        saveVocabReport({ bestMatchTime: timeTaken }); // Lưu thời gian hoàn thành match game
+        saveVocabReport({ bestMatchTime: timeTaken }); 
       }
     } else {
-      // Sai
       setMatchSelected(null);
     }
   };
@@ -386,12 +426,14 @@ export default function DoAssignment() {
   // RENDERS
   // ==========================================
 
+  // COMPONENT HEADER CÓ LOGO
   const appHeader = (titleText, showBack = false, backAction = null) => (
     <header style={{ backgroundColor: 'white', padding: isMobile ? '16px' : '20px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 50, borderBottom: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '15px', overflow: 'hidden' }}>
         {showBack && (
           <button onClick={backAction} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#003366', display: 'flex', padding: 0 }}><SvgIcons.Close /></button>
         )}
+        <img src="/BA LOGO.png" alt="BA Logo" style={{ height: '32px', objectFit: 'contain', flexShrink: 0 }} />
         <h1 style={{ fontSize: isMobile ? '18px' : '22px', margin: 0, fontWeight: '800', color: '#003366', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{titleText}</h1>
       </div>
       <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -606,8 +648,12 @@ export default function DoAssignment() {
   }
 
   const isTeacherPaced = sessionInfo?.mode === 'Teacher Paced';
-  const currentQuestionIndex = sessionInfo?.currentQuestionIndex || 0;
   const isInstantFeedback = sessionInfo?.mode === 'Instant Feedback';
+  
+  // Xác định câu hỏi nào cần hiển thị Nút "Chốt đáp án"
+  const requiresLocking = isInstantFeedback || isTeacherPaced;
+
+  const currentQuestionIndex = sessionInfo?.currentQuestionIndex || 0;
   const showFeedback = sessionInfo?.settings?.showFeedback;
   let globalQuestionIndex = 1;
 
@@ -754,16 +800,35 @@ export default function DoAssignment() {
                         <div style={{ padding: isMobile ? '16px' : '24px', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', overflowX: 'auto' }}>{renderTextWithGapsQuiz(q.text, q.id)}</div>
                       )}
 
-                      {isInstantFeedback && !isLocked && (
+                      {/* --- NÚT CHỐT ĐÁP ÁN --- */}
+                      {requiresLocking && !isLocked && (
                         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px', paddingTop: '16px', borderTop: '1px dashed #e2e8f0' }}>
-                          <button onClick={() => handleLockQuestion(q.id)} style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#0ea5e9', color: 'white', fontWeight: '700', padding: '10px 20px', borderRadius: '100px', cursor: 'pointer', border: 'none' }}><SvgIcons.Lock /> Chốt đáp án</button>
+                          <button 
+                            onClick={() => handleLockQuestion(q.id)} 
+                            style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#0ea5e9', color: 'white', fontWeight: '700', padding: '10px 20px', borderRadius: '100px', cursor: 'pointer', border: 'none', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(14,165,233,0.2)' }}
+                            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#0284c7'}
+                            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#0ea5e9'}
+                          >
+                            <SvgIcons.Lock /> Chốt đáp án
+                          </button>
                         </div>
                       )}
 
-                      {isInstantFeedback && isLocked && showFeedback && (
+                      {/* --- HIỂN THỊ ĐÁP ÁN ĐÚNG & GIẢI THÍCH KHI ĐÃ CHỐT --- */}
+                      {requiresLocking && isLocked && (
                         <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#f0f9ff', borderRadius: '12px', border: '1px solid #bae6fd', color: '#0369a1', fontSize: '14px', lineHeight: '1.6' }}>
-                          <div style={{ fontWeight: '800', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}><SvgIcons.Info /> Giải thích / Feedback:</div>
-                          {q.explanation ? q.explanation : 'Không có giải thích chi tiết cho câu hỏi này.'}
+                          <div style={{ fontWeight: '800', marginBottom: showFeedback ? '12px' : '0', color: '#15803d', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <SvgIcons.Check /> Đáp án đúng: {getCorrectAnswerDisplayForStudent(q)}
+                          </div>
+                          
+                          {showFeedback && (
+                            <>
+                              <div style={{ fontWeight: '800', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <SvgIcons.Info /> Giải thích / Feedback:
+                              </div>
+                              {q.explanation ? <div dangerouslySetInnerHTML={{ __html: q.explanation }} /> : <div>Không có giải thích chi tiết cho câu hỏi này.</div>}
+                            </>
+                          )}
                         </div>
                       )}
 
@@ -776,13 +841,13 @@ export default function DoAssignment() {
         })}
 
         {isTeacherPaced ? (
-          <div style={{ textAlign: 'center', marginTop: '40px', padding: '20px', backgroundColor: '#e0f2fe', borderRadius: '12px', border: '1px solid #bae6fd', color: '#0369a1', fontWeight: '700', fontSize: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+          <div style={{ textAlign: 'center', marginTop: '40px', padding: '20px', backgroundColor: '#e0f2fe', borderRadius: '12px', border: '1px solid #bae6fd', color: '#0369a1', fontWeight: '700', fontSize: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
             <div style={{ animation: 'pulse 2s infinite' }}><SvgIcons.Wait /></div>
             Chế độ Teacher Paced: Vui lòng đợi giáo viên chuyển sang câu hỏi tiếp theo...
           </div>
         ) : (
           <div style={{ display: 'flex', justifyContent: 'center', marginTop: '50px' }}>
-            <button onClick={handleQuizSubmit} style={{ width: isMobile ? '100%' : 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', backgroundColor: '#003366', color: 'white', fontWeight: '800', padding: '16px 40px', fontSize: '16px', borderRadius: '100px', cursor: 'pointer', border: 'none' }}>
+            <button onClick={handleQuizSubmit} style={{ width: isMobile ? '100%' : 'auto', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px', backgroundColor: '#003366', color: 'white', fontWeight: '800', padding: '16px 40px', fontSize: '16px', borderRadius: '100px', cursor: 'pointer', border: 'none', boxShadow: '0 10px 25px -5px rgba(0,51,102,0.3)', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
               <SvgIcons.Submit /> Submit Assignment
             </button>
           </div>

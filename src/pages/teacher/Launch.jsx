@@ -3,10 +3,22 @@ import { useState, useEffect, useContext } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { collection, getDocs, doc, updateDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import Button from '../../components/Button';
 import { TeacherContext } from './TeacherDashboard';
 
-// --- COMPONENT: CÔNG TẮC (TOGGLE SWITCH) TỐI GIẢN ---
+// --- HỆ THỐNG SVG ICONS TỐI GIẢN (Nét mảnh, màu #003366) ---
+const SvgIcons = {
+  Quiz: () => <svg width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>,
+  Race: () => <svg width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg>,
+  Review: () => <svg width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>,
+  Close: () => <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>,
+  Back: () => <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>,
+  Instant: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>,
+  Open: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>,
+  Teacher: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>,
+  Rocket: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M13.5 22H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v6.5"></path><path d="M22 17.5L18 22l-4.5-4.5"></path><line x1="18" y1="22" x2="18" y2="12"></line></svg>
+};
+
+// --- COMPONENT: CÔNG TẮC (TOGGLE SWITCH) ---
 const Toggle = ({ label, checked, onChange, disabled, info }) => (
   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px solid #f1f5f9' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: disabled ? '#94a3b8' : '#334155', fontSize: '15px', fontWeight: '500' }}>
@@ -31,24 +43,24 @@ const Toggle = ({ label, checked, onChange, disabled, info }) => (
   </div>
 );
 
-// --- COMPONENT: THẺ CHỌN PHƯƠNG THỨC ---
+// --- COMPONENT: THẺ CHỌN PHƯƠNG THỨC LÀM BÀI ---
 const MethodCard = ({ title, icon, description, active, onClick }) => (
   <div onClick={onClick} style={{
-    border: active ? '2px solid #003366' : '1px solid #e2e8f0',
-    borderRadius: '8px', padding: '20px', marginBottom: '15px', cursor: 'pointer',
-    backgroundColor: active ? '#f8fafc' : 'white', transition: 'all 0.2s ease'
+    border: active ? '2px solid #003366' : '1px solid #cbd5e1',
+    borderRadius: '12px', padding: '20px', marginBottom: '15px', cursor: 'pointer',
+    backgroundColor: active ? '#f0f9ff' : 'white', transition: 'all 0.2s ease'
   }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: active ? '10px' : '0' }}>
-      <div style={{ color: active ? '#003366' : '#94a3b8', fontSize: '24px', display: 'flex' }}>{icon}</div>
-      <div style={{ flex: 1, fontSize: '16px', fontWeight: active ? '700' : '500', color: active ? '#003366' : '#475569' }}>{title}</div>
+      <div style={{ color: active ? '#003366' : '#94a3b8', display: 'flex' }}>{icon}</div>
+      <div style={{ flex: 1, fontSize: '16px', fontWeight: active ? '800' : '600', color: active ? '#003366' : '#475569' }}>{title}</div>
       <div style={{
         width: '20px', height: '20px', borderRadius: '50%',
         border: active ? '6px solid #003366' : '2px solid #cbd5e1',
-        backgroundColor: 'white', transition: 'border 0.2s ease'
+        backgroundColor: 'white', transition: 'border 0.2s ease', flexShrink: 0
       }} />
     </div>
     {active && description && (
-      <div style={{ color: '#475569', fontSize: '14px', lineHeight: '1.6', marginLeft: '40px' }}>{description}</div>
+      <div style={{ color: '#475569', fontSize: '14px', lineHeight: '1.6', marginLeft: '35px' }}>{description}</div>
     )}
   </div>
 );
@@ -124,128 +136,125 @@ export default function Launch() {
 
   const selectedQuizData = quizzes.find(q => q.id === selectedQuizId);
 
-  const circleCardStyle = {
-    width: isMobile ? '100%' : '180px', height: isMobile ? 'auto' : '160px', 
-    padding: isMobile ? '20px' : '0', borderRadius: '16px',
-    display: 'flex', flexDirection: isMobile ? 'row' : 'column', 
-    alignItems: 'center', justifyContent: isMobile ? 'flex-start' : 'center',
-    backgroundColor: 'white', color: '#003366', fontWeight: '700', fontSize: '18px', cursor: 'pointer',
-    border: '2px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-    transition: 'all 0.2s ease', gap: isMobile ? '20px' : '0'
-  };
-
   return (
-    <div style={{ padding: isMobile ? '15px' : '20px', minHeight: '80vh', position: 'relative' }}>
-      <h2 style={{ color: '#003366', fontWeight: '800', marginBottom: '30px', textAlign: 'center', fontSize: '28px' }}>Launch</h2>
+    <div style={{ padding: isMobile ? '15px' : '30px', backgroundColor: '#f8fafc', minHeight: '100vh', fontFamily: "'Josefin Sans', sans-serif", position: 'relative' }}>
       
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'center', gap: '20px', marginBottom: '80px', alignItems: 'center' }}>
+      {/* TIÊU ĐỀ ĐỒNG BỘ CANH LỀ TRÁI */}
+      <h2 style={{ color: '#003366', margin: '0 0 24px 0', fontSize: isMobile ? '24px' : '28px', fontWeight: '800' }}>Launch</h2>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '20px' }}>
+        {/* CARD 1: BÀI KIỂM TRA */}
         <button 
           onClick={() => setStep('SELECT_QUIZ')} 
-          style={circleCardStyle} 
-          onMouseEnter={e => { e.currentTarget.style.borderColor = '#003366'; e.currentTarget.style.transform = 'translateY(-5px)'; e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0,51,102,0.15)'; }} 
+          style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', cursor: 'pointer', transition: 'all 0.2s ease', color: '#003366', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', width: '100%' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = '#003366'; e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0,51,102,0.1)'; }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.05)'; }}
         >
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#003366" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: isMobile ? '0' : '12px' }}>
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline>
-          </svg>
-          Bài kiểm tra
+          <SvgIcons.Quiz />
+          <span style={{ fontWeight: '800', fontSize: '18px' }}>Bài kiểm tra</span>
         </button>
 
+        {/* CARD 2: THI ĐUA */}
         <button 
-          style={circleCardStyle} 
-          onMouseEnter={e => { e.currentTarget.style.borderColor = '#003366'; e.currentTarget.style.transform = 'translateY(-5px)'; e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0,51,102,0.15)'; }} 
+          style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', cursor: 'pointer', transition: 'all 0.2s ease', color: '#003366', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', width: '100%' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = '#003366'; e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0,51,102,0.1)'; }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.05)'; }}
         >
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#003366" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: isMobile ? '0' : '12px' }}>
-            <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line>
-          </svg>
-          Thi đua
+          <SvgIcons.Race />
+          <span style={{ fontWeight: '800', fontSize: '18px' }}>Thi đua</span>
         </button>
 
+        {/* CARD 3: ÔN TẬP NHANH */}
         <button 
-          style={circleCardStyle} 
-          onMouseEnter={e => { e.currentTarget.style.borderColor = '#003366'; e.currentTarget.style.transform = 'translateY(-5px)'; e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0,51,102,0.15)'; }} 
+          style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', cursor: 'pointer', transition: 'all 0.2s ease', color: '#003366', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', width: '100%' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = '#003366'; e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0,51,102,0.1)'; }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.05)'; }}
         >
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#003366" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: isMobile ? '0' : '12px' }}>
-            <circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>
-          </svg>
-          Ôn tập nhanh
+          <SvgIcons.Review />
+          <span style={{ fontWeight: '800', fontSize: '18px' }}>Ôn tập nhanh</span>
         </button>
       </div>
 
+      {/* --- MODAL HIỂN THỊ CÁC BƯỚC CẤU HÌNH --- */}
       {step !== 'MENU' && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(2px)', padding: '15px', boxSizing: 'border-box' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '15px', boxSizing: 'border-box' }}>
           
+          {/* BƯỚC 1: CHỌN BÀI TẬP TỪ THƯ VIỆN */}
           {step === 'SELECT_QUIZ' && (
-            <div style={{ backgroundColor: 'white', padding: isMobile ? '20px' : '30px', borderRadius: '16px', border: '1px solid #e2e8f0', width: '100%', maxWidth: '700px', maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+            <div style={{ backgroundColor: 'white', padding: isMobile ? '20px' : '30px', borderRadius: '20px', width: '100%', maxWidth: '700px', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+              
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #f1f5f9', paddingBottom: '20px' }}>
                 <h2 style={{ color: '#003366', margin: 0, fontWeight: '800', fontSize: isMobile ? '20px' : '24px' }}>Chọn bài tập từ Thư viện</h2>
-                <button onClick={() => setStep('MENU')} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '24px', color: '#94a3b8', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#003366'} onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}>✕</button>
+                <button onClick={() => setStep('MENU')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', padding: '4px', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#ef4444'} onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}>
+                  <SvgIcons.Close />
+                </button>
               </div>
               
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {quizzes.length === 0 ? <p style={{ color: '#94a3b8', textAlign: 'center', padding: '20px 0' }}>Thư viện chưa có bài tập nào.</p> : quizzes.map(q => (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {quizzes.length === 0 ? <p style={{ color: '#94a3b8', textAlign: 'center', padding: '30px 0', fontSize: '15px' }}>Thư viện chưa có bài tập nào.</p> : quizzes.map(q => (
                   <div 
                     key={q.id} 
                     onClick={() => { setSelectedQuizId(q.id); setStep('CONFIG'); }}
-                    style={{ padding: '15px 20px', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.2s' }}
-                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f8fafc'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
-                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'white'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
+                    style={{ padding: '16px 20px', border: '1px solid #cbd5e1', borderRadius: '12px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.2s' }}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f0f9ff'; e.currentTarget.style.borderColor = '#003366'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'white'; e.currentTarget.style.borderColor = '#cbd5e1'; }}
                   >
                     <div style={{ fontWeight: '700', color: '#003366', fontSize: '16px' }}>{q.title}</div>
-                    <div style={{ color: '#64748b', fontSize: '14px', backgroundColor: '#f1f5f9', padding: '4px 12px', borderRadius: '20px' }}>{q.questions?.length || 0} câu hỏi</div>
+                    <div style={{ color: '#64748b', fontSize: '13px', backgroundColor: '#f8fafc', padding: '6px 12px', borderRadius: '100px', fontWeight: '600', border: '1px solid #e2e8f0' }}>{q.questions?.length || 0} câu hỏi</div>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
+          {/* BƯỚC 2: CẤU HÌNH VÀ PHÁT BÀI */}
           {step === 'CONFIG' && (
-            <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', width: '100%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ backgroundColor: 'white', borderRadius: '24px', width: '100%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column' }}>
               
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '16px 20px' : '24px 30px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', borderRadius: '16px 16px 0 0' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: isMobile ? '16px 20px' : '24px 30px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', borderRadius: '24px 24px 0 0' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   <button onClick={() => setStep('SELECT_QUIZ')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#003366', display: 'flex', alignItems: 'center', padding: '4px' }}>
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                    <SvgIcons.Back />
                   </button>
                   <h2 style={{ color: '#003366', margin: 0, fontSize: isMobile ? '16px' : '20px', fontWeight: '800', textTransform: 'uppercase' }}>{selectedQuizData?.title}</h2>
                 </div>
-                <button onClick={() => setStep('MENU')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#003366'} onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}>
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                <button onClick={() => setStep('MENU')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = '#ef4444'} onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}>
+                  <SvgIcons.Close />
                 </button>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? '25px' : '40px', padding: isMobile ? '20px' : '30px' }}>
                 
+                {/* CỘT PHƯƠNG THỨC */}
                 <div>
-                  <h3 style={{ fontSize: '15px', color: '#64748b', marginTop: 0, marginBottom: '15px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>Delivery Method</h3>
+                  <h3 style={{ fontSize: '14px', color: '#64748b', marginTop: 0, marginBottom: '15px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>Delivery Method</h3>
                   
                   <MethodCard 
                     title="Instant Feedback" 
-                    icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>} 
+                    icon={<SvgIcons.Instant />} 
                     active={deliveryMethod === 'Instant Feedback'} 
                     onClick={() => { setDeliveryMethod('Instant Feedback'); setShuffleQuestions(false); setShuffleAnswers(false); setOneAttempt(true); }}
                     description="Học viên làm câu hỏi theo thứ tự và không thể đổi đáp án. Nhận phản hồi ngay."
                   />
                   <MethodCard 
                     title="Open Navigation" 
-                    icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>} 
+                    icon={<SvgIcons.Open />} 
                     active={deliveryMethod === 'Open Navigation'} 
                     onClick={() => { setDeliveryMethod('Open Navigation'); setShowFeedback(false); setOneAttempt(false); }}
                     description="Học viên tự do chuyển giữa các câu hỏi và thay đổi đáp án trước khi nộp bài."
                   />
                   <MethodCard 
                     title="Teacher Paced" 
-                    icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>} 
+                    icon={<SvgIcons.Teacher />} 
                     active={deliveryMethod === 'Teacher Paced'} 
                     onClick={() => { setDeliveryMethod('Teacher Paced'); setShuffleQuestions(false); }}
                     description="Giáo viên điều khiển tiến trình làm bài, hiển thị từng câu hỏi một cho cả lớp."
                   />
                 </div>
 
+                {/* CỘT CÀI ĐẶT TÙY CHỌN */}
                 <div>
-                  <h3 style={{ fontSize: '15px', color: '#64748b', marginTop: 0, marginBottom: '15px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>Settings</h3>
+                  <h3 style={{ fontSize: '14px', color: '#64748b', marginTop: 0, marginBottom: '15px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>Settings</h3>
                   
                   <Toggle label="Require Names" checked={true} disabled={true} />
                   <Toggle label="Shuffle Questions" checked={shuffleQuestions} onChange={setShuffleQuestions} disabled={deliveryMethod === 'Teacher Paced'} info="Vô hiệu hóa khi ở chế độ Teacher Paced" />
@@ -256,10 +265,16 @@ export default function Launch() {
                 </div>
               </div>
 
-              <div style={{ padding: '20px 30px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', backgroundColor: '#f8fafc', borderRadius: '0 0 16px 16px' }}>
-                <Button onClick={handleLaunchActivity} style={{ width: isMobile ? '100%' : 'auto', backgroundColor: '#003366', color: 'white', padding: '14px 40px', fontSize: '16px', fontWeight: '700', borderRadius: '8px', border: 'none', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(0,51,102,0.2)' }}>
-                  Launch
-                </Button>
+              {/* NÚT LAUNCH CUỐI MODAL */}
+              <div style={{ padding: '20px 30px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', backgroundColor: '#f8fafc', borderRadius: '0 0 24px 24px' }}>
+                <button 
+                  onClick={handleLaunchActivity} 
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: isMobile ? '100%' : 'auto', backgroundColor: '#003366', color: 'white', padding: '14px 32px', fontSize: '15px', fontWeight: '700', borderRadius: '100px', border: 'none', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(0,51,102,0.2)', transition: 'all 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                  onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                  <SvgIcons.Rocket /> Launch
+                </button>
               </div>
             </div>
           )}
