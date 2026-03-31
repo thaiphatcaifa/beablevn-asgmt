@@ -96,11 +96,11 @@ export default function StudentLogin() {
           {/* STUDENT ID INPUT */}
           <div style={{ marginBottom: '30px' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: '700', color: '#003366', textTransform: 'uppercase', marginBottom: '8px' }}>
-              <SvgIcons.User /> Mã số / Tên học viên
+              <SvgIcons.User /> Mã số Học viên (Student ID)
             </label>
             <input 
               type="text" 
-              placeholder="VD: BAK010188" 
+              placeholder="VD: 20221508" 
               value={studentId} 
               onChange={(e) => setStudentId(e.target.value)} 
               required 
