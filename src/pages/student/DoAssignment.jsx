@@ -20,7 +20,8 @@ const SvgIcons = {
   Refresh: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>,
   Quiz: () => <svg width="40" height="40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>,
   Book: () => <svg width="40" height="40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>,
-  Flip: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>
+  Flip: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>,
+  Timer: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
 };
 
 export default function DoAssignment() {
@@ -28,11 +29,10 @@ export default function DoAssignment() {
   const navigate = useNavigate();
   
   // States chung
-  const [view, setView] = useState('DASHBOARD'); // DASHBOARD, QUIZ, VOCAB_HOME, VOCAB_FLASHCARDS, VOCAB_LEARN, VOCAB_MATCH
+  const [view, setView] = useState('DASHBOARD');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const studentId = localStorage.getItem('currentStudentId');
 
-  // Room & Data States
   const [roomData, setRoomData] = useState(null);
   
   // Quiz States
@@ -46,21 +46,28 @@ export default function DoAssignment() {
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const sessionsRef = useRef([]);
 
+  // --- TIMER STATE ---
+  const [timeLeft, setTimeLeft] = useState(null);
+  const autoSubmitFired = useRef(false);
+
+  // Refs to access latest state inside async functions
+  const localAnswersRef = useRef(localAnswers);
+  useEffect(() => { localAnswersRef.current = localAnswers; }, [localAnswers]);
+  
+  const shuffledQuizRef = useRef(shuffledQuiz);
+  useEffect(() => { shuffledQuizRef.current = shuffledQuiz; }, [shuffledQuiz]);
+
   // Vocab States
   const [vocabSet, setVocabSet] = useState(null);
   const [vocabCardIndex, setVocabCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
-  
-  // Learn Mode States
   const [learnQ, setLearnQ] = useState(null); 
   const [learnStats, setLearnStats] = useState({ correct: 0, total: 0 });
-
-  // Match Mode States
   const [matchItems, setMatchItems] = useState([]); 
   const [matchSelected, setMatchSelected] = useState(null);
   const [matchStartTime, setMatchStartTime] = useState(null);
 
-  // States cho Menu và Verification
+  // Modal / Menu
   const [showVerification, setShowVerification] = useState(true);
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef(null);
@@ -68,14 +75,10 @@ export default function DoAssignment() {
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handleResize);
-    
     const handleClickOutside = (event) => {
-      if (menuRef.current && !menuRef.current.contains(event.target)) {
-        setShowMenu(false);
-      }
+      if (menuRef.current && !menuRef.current.contains(event.target)) setShowMenu(false);
     };
     document.addEventListener("mousedown", handleClickOutside);
-
     return () => {
       window.removeEventListener('resize', handleResize);
       document.removeEventListener("mousedown", handleClickOutside);
@@ -95,26 +98,18 @@ export default function DoAssignment() {
         const data = snap.data();
         setRoomData(data);
         
-        // Load Quiz
         const activeSession = data.activeSession;
         if (activeSession && activeSession.status === 'active') {
           setSessionInfo(activeSession);
           const quizSnap = await getDoc(doc(db, "quizzes", activeSession.quizId));
-          if (quizSnap.exists()) {
-            setQuiz({ id: activeSession.quizId, ...quizSnap.data() });
-          }
+          if (quizSnap.exists()) setQuiz({ id: activeSession.quizId, ...quizSnap.data() });
         } else {
-          setQuiz(null);
-          setSessionInfo(null);
-          setShuffledQuiz(null);
+          setQuiz(null); setSessionInfo(null); setShuffledQuiz(null);
         }
 
-        // Load Vocab
         if (data.assignedVocabId) {
           const vocabSnap = await getDoc(doc(db, "vocab_sets", data.assignedVocabId));
-          if (vocabSnap.exists()) {
-            setVocabSet({ id: vocabSnap.id, ...vocabSnap.data() });
-          }
+          if (vocabSnap.exists()) setVocabSet({ id: vocabSnap.id, ...vocabSnap.data() });
         } else {
           setVocabSet(null);
         }
@@ -135,6 +130,7 @@ export default function DoAssignment() {
       setCurrentSessionId(null);
       setIsSubmitted(false);
       sessionsRef.current = [];
+      autoSubmitFired.current = false;
     }
   }, [sessionInfo?.startTime]);
 
@@ -221,6 +217,33 @@ export default function DoAssignment() {
     initSession();
   }, [shuffledQuiz, sessionInfo, isInitialized, roomId, studentId]);
 
+  // --- LOGIC TIMER ---
+  useEffect(() => {
+    if (!sessionInfo?.settings?.timeLimit || !sessionInfo?.startTime || isSubmitted || view !== 'QUIZ') {
+      setTimeLeft(null);
+      return;
+    }
+
+    const limitMs = sessionInfo.settings.timeLimit * 60000;
+    const startTimeMs = new Date(sessionInfo.startTime).getTime();
+    const deadlineMs = startTimeMs + limitMs;
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const remaining = Math.max(0, deadlineMs - now);
+      setTimeLeft(remaining);
+
+      if (remaining <= 0 && !autoSubmitFired.current) {
+        clearInterval(interval);
+        autoSubmitFired.current = true;
+        alert("Đã hết thời gian làm bài! Hệ thống sẽ tự động thu bài của bạn.");
+        submitQuizData();
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [sessionInfo, isSubmitted, view]);
+
   const evaluateAnswer = (question, studentAnswer) => {
     if (!studentAnswer) return false;
     const ans = String(studentAnswer).trim().toLowerCase();
@@ -242,7 +265,6 @@ export default function DoAssignment() {
     return false;
   };
 
-  // Helper hiển thị kết quả đáp án đúng sau khi Chốt
   const getCorrectAnswerDisplayForStudent = (q) => {
     if (q.type === 'MCQ') {
        if(!q.displayOptions) return '';
@@ -331,12 +353,14 @@ export default function DoAssignment() {
     return () => clearTimeout(timeoutId);
   }, [localAnswers, shuffledQuiz, isInitialized, currentSessionId, isSubmitted, roomId, studentId, view]);
 
-  const handleQuizSubmit = async () => {
-    if (!window.confirm("Bạn có chắc chắn muốn nộp bài không?")) return;
+  const submitQuizData = async () => {
     const formattedAnswers = {};
-    if (shuffledQuiz && shuffledQuiz.questions) {
-      shuffledQuiz.questions.forEach(q => {
-        const ans = localAnswers[q.id];
+    const currentQuiz = shuffledQuizRef.current;
+    const currentAnswers = localAnswersRef.current;
+
+    if (currentQuiz && currentQuiz.questions) {
+      currentQuiz.questions.forEach(q => {
+        const ans = currentAnswers[q.id];
         if (ans === undefined || ans === null) { formattedAnswers[q.id] = ''; return; }
         if (q.type === 'MCQ') formattedAnswers[q.id] = ans.map(i => String.fromCharCode(65 + i)).join(', ');
         else if (q.type === 'GAP_FILL_PARAGRAPH' || q.type === 'GAP_FILL_DIAGRAM') {
@@ -351,6 +375,10 @@ export default function DoAssignment() {
     } catch (error) { alert("Lỗi nộp bài."); }
   };
 
+  const handleQuizSubmit = async () => {
+    if (!window.confirm("Bạn có chắc chắn muốn nộp bài không?")) return;
+    await submitQuizData();
+  };
 
   // ==========================================
   // LOGIC VOCABULARY
@@ -421,22 +449,38 @@ export default function DoAssignment() {
     }
   };
 
+  const formatTimeLeft = (ms) => {
+    if (ms === null || ms < 0) return '00:00';
+    const totalSecs = Math.floor(ms / 1000);
+    const m = Math.floor(totalSecs / 60).toString().padStart(2, '0');
+    const s = (totalSecs % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+  };
 
   // ==========================================
   // RENDERS
   // ==========================================
 
-  // COMPONENT HEADER CÓ LOGO
   const appHeader = (titleText, showBack = false, backAction = null) => (
-    <header style={{ backgroundColor: 'white', padding: isMobile ? '16px' : '20px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 50, borderBottom: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '15px', overflow: 'hidden' }}>
+    <header style={{ backgroundColor: 'white', padding: isMobile ? '12px 20px' : '20px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 50, borderBottom: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
+      
+      <div style={{ display: 'flex', alignItems: 'center', gap: '15px', overflow: 'hidden', flex: 1 }}>
         {showBack && (
           <button onClick={backAction} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#003366', display: 'flex', padding: 0 }}><SvgIcons.Close /></button>
         )}
         <img src="/BA LOGO.png" alt="BA Logo" style={{ height: '32px', objectFit: 'contain', flexShrink: 0 }} />
-        <h1 style={{ fontSize: isMobile ? '18px' : '22px', margin: 0, fontWeight: '800', color: '#003366', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{titleText}</h1>
+        {!isMobile && <h1 style={{ fontSize: '22px', margin: 0, fontWeight: '800', color: '#003366', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{titleText}</h1>}
       </div>
-      <div style={{ display: 'flex', alignItems: 'center' }}>
+
+      {view === 'QUIZ' && sessionInfo?.settings?.timeLimit && timeLeft !== null && !isSubmitted && (
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+           <div style={{ backgroundColor: '#fef2f2', color: '#ef4444', padding: '6px 16px', borderRadius: '100px', fontWeight: '800', fontSize: isMobile ? '15px' : '18px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #fca5a5' }}>
+              <SvgIcons.Timer /> {formatTimeLeft(timeLeft)}
+           </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', alignItems: 'center', flex: 1, justifyContent: 'flex-end' }}>
         <div style={{ position: 'relative' }} ref={menuRef}>
           <button onClick={() => setShowMenu(!showMenu)} style={{ background: 'none', border: 'none', color: '#003366', cursor: 'pointer', display: 'flex', padding: '8px' }}>
             <SvgIcons.Menu />
@@ -649,10 +693,7 @@ export default function DoAssignment() {
 
   const isTeacherPaced = sessionInfo?.mode === 'Teacher Paced';
   const isInstantFeedback = sessionInfo?.mode === 'Instant Feedback';
-  
-  // Xác định câu hỏi nào cần hiển thị Nút "Chốt đáp án"
   const requiresLocking = isInstantFeedback || isTeacherPaced;
-
   const currentQuestionIndex = sessionInfo?.currentQuestionIndex || 0;
   const showFeedback = sessionInfo?.settings?.showFeedback;
   let globalQuestionIndex = 1;
@@ -661,21 +702,43 @@ export default function DoAssignment() {
     ? shuffledQuiz.sections 
     : [{ id: 'default', type: shuffledQuiz.quizMode === 'PASSAGE' ? 'PASSAGE' : 'SINGLE', title: shuffledQuiz.passageTitle || 'Quiz Assignment', passageContent: shuffledQuiz.passage }];
 
-  const renderTextWithGapsQuiz = (text, qId) => {
-    if (!text) return null;
-    const formattedText = text.replace(/\n/g, '<br/>');
+  const renderTextWithGapsQuiz = (q) => {
+    if (!q.text) return null;
+    const formattedText = q.text.replace(/\n/g, '<br/>');
     const parts = formattedText.split(/\[(\d+)\]/g);
-    const isLocked = lockedQuestions[qId];
 
     return (
       <div style={{ lineHeight: '2.4', fontSize: '15px', color: '#334155' }}>
         {parts.map((part, index) => {
           if (index % 2 === 1) { 
+            const gapId = part;
+            const isLocked = lockedQuestions[q.id];
+            
+            let isCorrect = false;
+            if (isLocked) {
+               const gapDef = (q.gaps || []).find(g => String(g.id) === String(gapId));
+               if (gapDef) {
+                   const correctAnsArray = (gapDef.answerString || '').split(',').map(s => s.trim().toLowerCase());
+                   const stAns = (localAnswers[q.id] && localAnswers[q.id][gapId]) || '';
+                   isCorrect = correctAnsArray.includes(stAns.trim().toLowerCase());
+               }
+            }
+
+            const bgColor = isLocked ? (isCorrect ? '#dcfce7' : '#fee2e2') : '#f0f9ff';
+            const borderColor = isLocked ? (isCorrect ? '#15803d' : '#b91c1c') : '#cbd5e1';
+            const textColor = isLocked ? (isCorrect ? '#15803d' : '#b91c1c') : '#003366';
+
             return (
               <input
-                key={index} type="text" placeholder={part} value={(localAnswers[qId] && localAnswers[qId][part]) || ''}
-                onChange={(e) => handleGapFillChange(qId, part, e.target.value)} disabled={isLocked}
-                style={{ minWidth: '80px', maxWidth: '100%', margin: '0 6px', padding: '6px 12px', border: 'none', borderBottom: '2px solid #cbd5e1', outline: 'none', textAlign: 'center', fontSize: '15px', color: '#003366', fontWeight: 'bold', backgroundColor: isLocked ? '#f1f5f9' : '#f0f9ff', borderRadius: '6px 6px 0 0', cursor: isLocked ? 'not-allowed' : 'text', opacity: isLocked ? 0.7 : 1 }}
+                key={index} type="text" placeholder={gapId} value={(localAnswers[q.id] && localAnswers[q.id][gapId]) || ''}
+                onChange={(e) => handleGapFillChange(q.id, gapId, e.target.value)} disabled={isLocked}
+                style={{ 
+                  minWidth: '80px', maxWidth: '100%', margin: '0 6px', padding: '6px 12px', border: 'none', 
+                  borderBottom: `2px solid ${borderColor}`, outline: 'none', textAlign: 'center', 
+                  fontSize: '15px', color: textColor, fontWeight: 'bold', 
+                  backgroundColor: bgColor, borderRadius: '6px 6px 0 0', 
+                  cursor: isLocked ? 'not-allowed' : 'text', opacity: isLocked ? 0.9 : 1 
+                }}
               />
             );
           }
@@ -722,8 +785,19 @@ export default function DoAssignment() {
                   const isLocked = lockedQuestions[q.id];
                   const currentQNum = isTeacherPaced ? currentQuestionIndex + 1 : globalQuestionIndex++;
 
+                  let isCorrectSAQ_MATCH = false;
+                  const stAnsSAQ_MATCH = localAnswers[q.id] || '';
+                  if (isLocked && stAnsSAQ_MATCH) {
+                    if (q.type === 'MATCHING') isCorrectSAQ_MATCH = stAnsSAQ_MATCH.trim().toLowerCase() === String(q.correctMatch || '').trim().toLowerCase();
+                    if (q.type === 'SAQ') isCorrectSAQ_MATCH = (q.correctText || '').split(',').map(s => s.trim().toLowerCase()).includes(stAnsSAQ_MATCH.trim().toLowerCase());
+                  }
+                  
+                  const saqBg = isLocked ? (isCorrectSAQ_MATCH ? '#dcfce7' : '#fee2e2') : '#f8fafc';
+                  const saqBorder = isLocked ? (isCorrectSAQ_MATCH ? '#15803d' : '#b91c1c') : '#cbd5e1';
+                  const saqColor = isLocked ? (isCorrectSAQ_MATCH ? '#15803d' : '#b91c1c') : '#003366';
+
                   return (
-                    <div key={q.id} style={{ backgroundColor: 'white', padding: isMobile ? '20px' : '30px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)', opacity: isLocked ? 0.9 : 1 }}>
+                    <div key={q.id} style={{ backgroundColor: 'white', padding: isMobile ? '20px' : '30px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
                       
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', flexWrap: 'wrap' }}>
                         <span style={{ backgroundColor: '#003366', color: 'white', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '15px' }}>{currentQNum}</span>
@@ -746,10 +820,30 @@ export default function DoAssignment() {
                           {(q.displayOptions || []).map((optObj, i) => {
                             const originalIdx = optObj.originalIndex;
                             const isChecked = (localAnswers[q.id] || []).includes(originalIdx);
+                            const isCorrectOption = (q.correctOptions || []).includes(originalIdx);
+
+                            let bgColor = isChecked ? '#f0f9ff' : 'white';
+                            let borderColor = isChecked ? '#003366' : '#e2e8f0';
+                            let checkBgColor = isChecked ? '#003366' : 'transparent';
+                            let checkBorderColor = isChecked ? 'none' : '2px solid #cbd5e1';
+
+                            if (isLocked && isChecked) {
+                                if (isCorrectOption) {
+                                    bgColor = '#dcfce7'; borderColor = '#15803d'; checkBgColor = '#15803d'; checkBorderColor = 'none';
+                                } else {
+                                    bgColor = '#fee2e2'; borderColor = '#b91c1c'; checkBgColor = '#b91c1c'; checkBorderColor = 'none';
+                                }
+                            }
+
                             return (
-                              <div key={originalIdx} onClick={() => !isLocked && handleToggleMCQ(q.id, originalIdx)} style={{ display: 'flex', alignItems: 'flex-start', padding: '16px', border: isChecked ? '2px solid #003366' : '1px solid #e2e8f0', borderRadius: '12px', cursor: isLocked ? 'not-allowed' : 'pointer', backgroundColor: isChecked ? '#f0f9ff' : 'white', transition: 'all 0.2s', color: '#334155' }}>
-                                <div style={{ marginTop: '2px', width: '22px', height: '22px', borderRadius: '6px', border: isChecked ? 'none' : '2px solid #cbd5e1', backgroundColor: isChecked ? '#003366' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '16px', flexShrink: 0 }}><SvgIcons.Check /></div>
-                                <div style={{ fontSize: '15px', fontWeight: isChecked ? '700' : '500', lineHeight: '1.6', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', flex: 1 }}><span style={{ fontWeight: '800', marginRight: '8px' }}>{String.fromCharCode(65 + i)}.</span><div dangerouslySetInnerHTML={{ __html: optObj.text }} style={{ flex: 1, margin: 0, padding: 0 }} /></div>
+                              <div key={originalIdx} onClick={() => !isLocked && handleToggleMCQ(q.id, originalIdx)} style={{ display: 'flex', alignItems: 'flex-start', padding: '16px', border: `1px solid ${borderColor}`, borderRadius: '12px', cursor: isLocked ? 'not-allowed' : 'pointer', backgroundColor: bgColor, transition: 'all 0.2s', color: '#334155' }}>
+                                <div style={{ marginTop: '2px', width: '22px', height: '22px', borderRadius: '6px', border: checkBorderColor, backgroundColor: checkBgColor, display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: '16px', flexShrink: 0 }}>
+                                  {isChecked && <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                                </div>
+                                <div style={{ fontSize: '15px', fontWeight: isChecked ? '700' : '500', lineHeight: '1.6', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', flex: 1 }}>
+                                  <span style={{ fontWeight: '800', marginRight: '8px' }}>{String.fromCharCode(65 + i)}.</span>
+                                  <div dangerouslySetInnerHTML={{ __html: optObj.text }} style={{ flex: 1, margin: 0, padding: 0 }} />
+                                </div>
                               </div>
                             );
                           })}
@@ -760,8 +854,22 @@ export default function DoAssignment() {
                         <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '12px' }}>
                           {(q.evalType === 'YNNG' ? ['Yes', 'No', 'Not Given'] : ['True', 'False', 'Not Given']).map(opt => {
                             const isSelected = localAnswers[q.id] === opt;
+                            const isCorrectOption = q.correctOption === opt;
+
+                            let bgColor = isSelected ? '#f0f9ff' : 'white';
+                            let borderColor = isSelected ? '#003366' : '#e2e8f0';
+                            let textColor = isSelected ? '#003366' : '#64748b';
+
+                            if (isLocked && isSelected) {
+                                if (isCorrectOption) {
+                                    bgColor = '#dcfce7'; borderColor = '#15803d'; textColor = '#15803d';
+                                } else {
+                                    bgColor = '#fee2e2'; borderColor = '#b91c1c'; textColor = '#b91c1c';
+                                }
+                            }
+
                             return (
-                              <div key={opt} onClick={() => !isLocked && handleSimpleAnswer(q.id, opt)} style={{ flex: 1, textAlign: 'center', padding: '16px', border: isSelected ? '2px solid #003366' : '1px solid #e2e8f0', borderRadius: '12px', cursor: isLocked ? 'not-allowed' : 'pointer', fontWeight: '700', color: isSelected ? '#003366' : '#64748b', backgroundColor: isSelected ? '#f0f9ff' : 'white' }}>
+                              <div key={opt} onClick={() => !isLocked && handleSimpleAnswer(q.id, opt)} style={{ flex: 1, textAlign: 'center', padding: '16px', border: `2px solid ${borderColor}`, borderRadius: '12px', cursor: isLocked ? 'not-allowed' : 'pointer', fontWeight: '700', color: textColor, backgroundColor: bgColor, transition: 'all 0.2s' }}>
                                 {opt}
                               </div>
                             );
@@ -770,7 +878,11 @@ export default function DoAssignment() {
                       )}
 
                       {['MATCHING', 'SAQ'].includes(q.type) && (
-                        <input type="text" placeholder="Nhập câu trả lời của bạn..." value={localAnswers[q.id] || ''} onChange={(e) => handleSimpleAnswer(q.id, e.target.value)} disabled={isLocked} style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '15px', color: '#003366', fontWeight: '600', boxSizing: 'border-box', backgroundColor: isLocked ? '#f1f5f9' : '#f8fafc' }} />
+                        <input 
+                          type="text" placeholder="Nhập câu trả lời của bạn..." value={localAnswers[q.id] || ''} 
+                          onChange={(e) => handleSimpleAnswer(q.id, e.target.value)} disabled={isLocked} 
+                          style={{ width: '100%', padding: '16px', borderRadius: '12px', border: `1px solid ${saqBorder}`, outline: 'none', fontSize: '15px', color: saqColor, fontWeight: '700', boxSizing: 'border-box', backgroundColor: saqBg, transition: 'all 0.2s' }} 
+                        />
                       )}
 
                       {q.type === 'GAP_FILL_DIAGRAM' && (
@@ -785,19 +897,33 @@ export default function DoAssignment() {
                           )}
                           {(q.labels && q.labels.length > 0) && (
                             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '12px' }}>
-                              {q.labels.map(lbl => (
-                                <div key={lbl.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: isLocked ? '#f1f5f9' : 'white', padding: '10px 16px', borderRadius: '10px', border: '1px solid #cbd5e1' }}>
-                                  <span style={{ backgroundColor: '#0ea5e9', color: 'white', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '13px', flexShrink: 0 }}>{lbl.id}</span>
-                                  <input type="text" placeholder={`Nhập đáp án nhãn ${lbl.id}...`} value={(localAnswers[q.id] && localAnswers[q.id][lbl.id]) || ''} onChange={(e) => handleGapFillChange(q.id, lbl.id, e.target.value)} disabled={isLocked} style={{ flex: 1, border: 'none', outline: 'none', fontSize: '15px', color: '#003366', fontWeight: '600', width: '100%', minWidth: '0', backgroundColor: 'transparent' }} />
-                                </div>
-                              ))}
+                              {q.labels.map(lbl => {
+                                let isLabelCorrect = false;
+                                const stLblAns = (localAnswers[q.id] && localAnswers[q.id][lbl.id]) || '';
+                                if (isLocked) {
+                                    const correctAnsArray = (lbl.answerString || '').split(',').map(s => s.trim().toLowerCase());
+                                    isLabelCorrect = correctAnsArray.includes(stLblAns.trim().toLowerCase());
+                                }
+                                const lblBg = isLocked ? (isLabelCorrect ? '#dcfce7' : '#fee2e2') : 'white';
+                                const lblBorder = isLocked ? (isLabelCorrect ? '#15803d' : '#b91c1c') : '#cbd5e1';
+                                const lblText = isLocked ? (isLabelCorrect ? '#15803d' : '#b91c1c') : '#003366';
+
+                                return (
+                                  <div key={lbl.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: lblBg, padding: '10px 16px', borderRadius: '10px', border: `1px solid ${lblBorder}`, transition: 'all 0.2s' }}>
+                                    <span style={{ backgroundColor: '#0ea5e9', color: 'white', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '13px', flexShrink: 0 }}>{lbl.id}</span>
+                                    <input type="text" placeholder={`Nhập đáp án nhãn ${lbl.id}...`} value={stLblAns} onChange={(e) => handleGapFillChange(q.id, lbl.id, e.target.value)} disabled={isLocked} style={{ flex: 1, border: 'none', outline: 'none', fontSize: '15px', color: lblText, fontWeight: '700', width: '100%', minWidth: '0', backgroundColor: 'transparent' }} />
+                                  </div>
+                                )
+                              })}
                             </div>
                           )}
                         </div>
                       )}
 
                       {q.type === 'GAP_FILL_PARAGRAPH' && (
-                        <div style={{ padding: isMobile ? '16px' : '24px', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', overflowX: 'auto' }}>{renderTextWithGapsQuiz(q.text, q.id)}</div>
+                        <div style={{ padding: isMobile ? '16px' : '24px', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', overflowX: 'auto' }}>
+                          {renderTextWithGapsQuiz(q)}
+                        </div>
                       )}
 
                       {/* --- NÚT CHỐT ĐÁP ÁN --- */}
