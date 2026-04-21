@@ -82,10 +82,6 @@ export default function Launch() {
   const [showFeedback, setShowFeedback] = useState(false);
   const [showFinalScore, setShowFinalScore] = useState(false);
   const [oneAttempt, setOneAttempt] = useState(true);
-  
-  // Timer State
-  const [hasTimer, setHasTimer] = useState(false);
-  const [timeLimit, setTimeLimit] = useState('');
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -101,31 +97,17 @@ export default function Launch() {
     fetchQuizzes();
   }, []);
 
-  // Xử lý tự động vô hiệu hóa Timer nếu không thỏa điều kiện
-  useEffect(() => {
-    if (deliveryMethod !== 'Instant Feedback' || !oneAttempt) {
-      setHasTimer(false);
-      setTimeLimit('');
-    }
-  }, [deliveryMethod, oneAttempt]);
-
   const handleLaunchActivity = async () => {
     if (!activeRoom) {
       alert("Vui lòng chọn Lớp học (Room) ở góc phải màn hình trước khi Launch!"); return;
     }
-    
-    if (hasTimer && (!timeLimit || isNaN(timeLimit) || parseInt(timeLimit) <= 0)) {
-      alert("Vui lòng nhập thời gian làm bài hợp lệ (lớn hơn 0 phút).");
-      return;
-    }
-
     try {
       const roomSnap = await getDoc(doc(db, "rooms", activeRoom));
       if (roomSnap.data()?.activeSession) {
         if(!window.confirm(`Lớp ${activeRoom} đang có một hoạt động diễn ra. Bạn có chắc muốn dừng bài cũ và chạy bài mới này không?`)) return;
       }
 
-      // Xóa sạch toàn bộ lịch sử (submissions) của bài cũ
+      // QUAN TRỌNG: Xóa sạch toàn bộ lịch sử (submissions) của bài cũ để không tính dồn
       const subDocs = await getDocs(collection(db, `rooms/${activeRoom}/submissions`));
       for (const subDoc of subDocs.docs) {
         await deleteDoc(doc(db, `rooms/${activeRoom}/submissions`, subDoc.id));
@@ -133,20 +115,13 @@ export default function Launch() {
 
       const quizData = quizzes.find(q => q.id === selectedQuizId);
 
-      // Cập nhật session lên Firebase
+      // Cập nhật session lên Firebase với startTime mới tinh
       await updateDoc(doc(db, "rooms", activeRoom), {
         activeSession: {
           quizId: selectedQuizId,
           quizTitle: quizData.title,
           mode: deliveryMethod,
-          settings: { 
-            shuffleQuestions, 
-            shuffleAnswers, 
-            showFeedback, 
-            showFinalScore, 
-            oneAttempt,
-            timeLimit: hasTimer && timeLimit ? parseInt(timeLimit) : null
-          },
+          settings: { shuffleQuestions, shuffleAnswers, showFeedback, showFinalScore, oneAttempt },
           currentQuestionIndex: deliveryMethod === 'Teacher Paced' ? 0 : null,
           status: 'active',
           startTime: new Date().toISOString()
@@ -164,9 +139,11 @@ export default function Launch() {
   return (
     <div style={{ padding: isMobile ? '15px' : '30px', backgroundColor: '#f8fafc', minHeight: '100vh', fontFamily: "'Josefin Sans', sans-serif", position: 'relative' }}>
       
+      {/* TIÊU ĐỀ ĐỒNG BỘ CANH LỀ TRÁI */}
       <h2 style={{ color: '#003366', margin: '0 0 24px 0', fontSize: isMobile ? '24px' : '28px', fontWeight: '800' }}>Launch</h2>
       
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '20px' }}>
+        {/* CARD 1: BÀI KIỂM TRA */}
         <button 
           onClick={() => setStep('SELECT_QUIZ')} 
           style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', cursor: 'pointer', transition: 'all 0.2s ease', color: '#003366', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', width: '100%' }}
@@ -177,6 +154,7 @@ export default function Launch() {
           <span style={{ fontWeight: '800', fontSize: '18px' }}>Bài kiểm tra</span>
         </button>
 
+        {/* CARD 2: THI ĐUA */}
         <button 
           style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', cursor: 'pointer', transition: 'all 0.2s ease', color: '#003366', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', width: '100%' }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = '#003366'; e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0,51,102,0.1)'; }}
@@ -186,6 +164,7 @@ export default function Launch() {
           <span style={{ fontWeight: '800', fontSize: '18px' }}>Thi đua</span>
         </button>
 
+        {/* CARD 3: ÔN TẬP NHANH */}
         <button 
           style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', cursor: 'pointer', transition: 'all 0.2s ease', color: '#003366', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', width: '100%' }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = '#003366'; e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0,51,102,0.1)'; }}
@@ -196,9 +175,11 @@ export default function Launch() {
         </button>
       </div>
 
+      {/* --- MODAL HIỂN THỊ CÁC BƯỚC CẤU HÌNH --- */}
       {step !== 'MENU' && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, backdropFilter: 'blur(4px)', padding: '15px', boxSizing: 'border-box' }}>
           
+          {/* BƯỚC 1: CHỌN BÀI TẬP TỪ THƯ VIỆN */}
           {step === 'SELECT_QUIZ' && (
             <div style={{ backgroundColor: 'white', padding: isMobile ? '20px' : '30px', borderRadius: '20px', width: '100%', maxWidth: '700px', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
               
@@ -226,6 +207,7 @@ export default function Launch() {
             </div>
           )}
 
+          {/* BƯỚC 2: CẤU HÌNH VÀ PHÁT BÀI */}
           {step === 'CONFIG' && (
             <div style={{ backgroundColor: 'white', borderRadius: '24px', width: '100%', maxWidth: '900px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column' }}>
               
@@ -243,6 +225,7 @@ export default function Launch() {
 
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? '25px' : '40px', padding: isMobile ? '20px' : '30px' }}>
                 
+                {/* CỘT PHƯƠNG THỨC */}
                 <div>
                   <h3 style={{ fontSize: '14px', color: '#64748b', marginTop: 0, marginBottom: '15px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>Delivery Method</h3>
                   
@@ -269,6 +252,7 @@ export default function Launch() {
                   />
                 </div>
 
+                {/* CỘT CÀI ĐẶT TÙY CHỌN */}
                 <div>
                   <h3 style={{ fontSize: '14px', color: '#64748b', marginTop: 0, marginBottom: '15px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>Settings</h3>
                   
@@ -278,31 +262,10 @@ export default function Launch() {
                   <Toggle label="Show Question Feedback" checked={showFeedback} onChange={setShowFeedback} disabled={deliveryMethod === 'Open Navigation'} />
                   <Toggle label="Show Final Score" checked={showFinalScore} onChange={setShowFinalScore} />
                   <Toggle label="One Attempt" checked={oneAttempt} onChange={setOneAttempt} info="Học viên chỉ được gửi bài 1 lần duy nhất." />
-                  
-                  {/* Nâng cấp TIMER */}
-                  <Toggle 
-                    label="Timer (Đếm ngược)" 
-                    checked={hasTimer} 
-                    onChange={setHasTimer} 
-                    disabled={deliveryMethod !== 'Instant Feedback' || !oneAttempt} 
-                    info="Chỉ bật được khi dùng Instant Feedback và One Attempt." 
-                  />
-                  {hasTimer && (
-                    <div style={{ padding: '10px 16px', backgroundColor: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                      <input 
-                        type="number" 
-                        placeholder="Nhập số phút (VD: 15)..." 
-                        value={timeLimit} 
-                        onChange={e => setTimeLimit(e.target.value)} 
-                        min="1" 
-                        style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', color: '#003366', fontWeight: '600', boxSizing: 'border-box' }} 
-                      />
-                    </div>
-                  )}
-
                 </div>
               </div>
 
+              {/* NÚT LAUNCH CUỐI MODAL */}
               <div style={{ padding: '20px 30px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', backgroundColor: '#f8fafc', borderRadius: '0 0 24px 24px' }}>
                 <button 
                   onClick={handleLaunchActivity} 
