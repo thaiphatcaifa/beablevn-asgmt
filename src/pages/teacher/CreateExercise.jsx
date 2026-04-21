@@ -42,6 +42,17 @@ const RichTextInput = ({ label, value, onChange, placeholder, minHeight = '60px'
     }
   };
 
+  const handleInsertImage = (e) => {
+    e.preventDefault();
+    const url = window.prompt("Nhập đường dẫn (URL) hình ảnh:");
+    if (url && url.trim() !== '') {
+      // Chèn ảnh với CSS inline tối ưu cho cả Web & Mobile
+      const imgHtml = `<img src="${url}" alt="image" style="max-width: 100%; max-height: 200px; object-fit: contain; border-radius: 8px; display: block; margin: 10px auto;" />`;
+      document.execCommand('insertHTML', false, imgHtml);
+      if (editorRef.current) onChange(editorRef.current.innerHTML);
+    }
+  };
+
   const handleInput = () => {
     if (editorRef.current) {
       onChange(editorRef.current.innerHTML);
@@ -58,6 +69,8 @@ const RichTextInput = ({ label, value, onChange, placeholder, minHeight = '60px'
           <button onMouseDown={(e) => handleCommand('bold', e)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#003366', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="In đậm"><SvgIcons.Bold /></button>
           <button onMouseDown={(e) => handleCommand('italic', e)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#003366', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="In nghiêng"><SvgIcons.Italic /></button>
           <button onMouseDown={(e) => handleCommand('underline', e)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#003366', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Gạch dưới"><SvgIcons.Underline /></button>
+          <div style={{ width: '1px', backgroundColor: '#cbd5e1', margin: '0 4px' }}></div>
+          <button onMouseDown={handleInsertImage} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#003366', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Chèn ảnh bằng URL"><SvgIcons.Image /></button>
         </div>
         
         {/* Editor Area */}
