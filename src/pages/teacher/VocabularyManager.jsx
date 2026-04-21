@@ -1,24 +1,22 @@
 // src/pages/teacher/VocabularyManager.jsx
-import { useState, useEffect, useContext } from 'react';
-import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { useState, useEffect } from 'react';
+import { collection, getDocs, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
-import { TeacherContext } from './TeacherDashboard';
 
 const SvgIcons = {
   Plus: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>,
-  Edit: () => <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="16 3 21 8 8 21 3 21 3 16 16 3"></polygon></svg>,
   Trash: () => <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>,
   Back: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>,
   Save: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
 };
 
 export default function VocabularyManager() {
-  const [activeTab, setActiveTab] = useState('SETS'); // SETS, CLASSES, REPORTS
+  const [activeTab, setActiveTab] = useState('SETS'); 
   const [vocabSets, setVocabSets] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [reports, setReports] = useState([]);
   
-  const [editingSet, setEditingSet] = useState(null); // null = Đang ở danh sách, Object = Đang Edit
+  const [editingSet, setEditingSet] = useState(null); 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   useEffect(() => {
@@ -27,18 +25,21 @@ export default function VocabularyManager() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Fetch Data
   const fetchData = async () => {
-    const setsSnap = await getDocs(collection(db, "vocab_sets"));
-    setVocabSets(setsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    try {
+      const setsSnap = await getDocs(collection(db, "vocab_sets"));
+      setVocabSets(setsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
-    const roomsSnap = await getDocs(collection(db, "rooms"));
-    setRooms(roomsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      const roomsSnap = await getDocs(collection(db, "rooms"));
+      setRooms(roomsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+    } catch (error) {
+      console.error("Lỗi lấy dữ liệu:", error);
+    }
   };
 
   useEffect(() => { fetchData(); }, []);
 
-  // --- LOGIC CHO TAB "SETS" (Bộ thẻ) ---
+  // --- LOGIC CHO TAB "SETS" ---
   const handleCreateNewSet = () => {
     setEditingSet({
       id: 'vs_' + Date.now(),
@@ -65,31 +66,41 @@ export default function VocabularyManager() {
 
   const handleDeleteSet = async (id) => {
     if(!window.confirm("Xóa bộ thẻ này?")) return;
-    await deleteDoc(doc(db, "vocab_sets", id));
-    fetchData();
-  };
-
-  // --- LOGIC CHO TAB "CLASSES" (Gán thẻ cho phòng) ---
-  const handleAssignSetToRoom = async (roomId, setId) => {
     try {
-      await updateDoc(doc(db, "rooms", roomId), { assignedVocabId: setId });
+      await deleteDoc(doc(db, "vocab_sets", id));
       fetchData();
-      alert("Gán bộ thẻ cho lớp thành công!");
     } catch (error) {
-      console.error(error); alert("Lỗi khi gán.");
+      console.error(error); alert("Lỗi khi xóa bộ thẻ.");
     }
   };
 
-  // --- LOGIC CHO TAB "REPORTS" (Lấy từ rooms/{roomId}/vocab_submissions) ---
+  // --- LOGIC CHO TAB "CLASSES" ---
+  const handleAssignSetToRoom = async (actualRoomId, setId) => {
+    try {
+      // Dùng setDoc với merge: true để cực kỳ an toàn, chống lỗi Not Found Document
+      await setDoc(doc(db, "rooms", actualRoomId), { assignedVocabId: setId }, { merge: true });
+      fetchData();
+      alert("Gán bộ thẻ cho lớp thành công!");
+    } catch (error) {
+      console.error(error); alert("Lỗi khi gán. Chi tiết: " + error.message);
+    }
+  };
+
+  // --- LOGIC CHO TAB "REPORTS" ---
   useEffect(() => {
     if (activeTab === 'REPORTS') {
       const fetchReports = async () => {
         let allRep = [];
         for (let r of rooms) {
-          const subSnap = await getDocs(collection(db, `rooms/${r.id}/vocab_submissions`));
-          subSnap.docs.forEach(d => {
-            allRep.push({ roomId: r.id, studentId: d.id, ...d.data() });
-          });
+          const targetRoomId = r.roomId || r.id;
+          try {
+            const subSnap = await getDocs(collection(db, `rooms/${targetRoomId}/vocab_submissions`));
+            subSnap.docs.forEach(d => {
+              allRep.push({ roomId: targetRoomId, studentId: d.id, ...d.data() });
+            });
+          } catch (err) {
+            console.error(`Không lấy được báo cáo cho phòng ${targetRoomId}`);
+          }
         }
         setReports(allRep);
       };
@@ -98,7 +109,7 @@ export default function VocabularyManager() {
   }, [activeTab, rooms]);
 
   const renderTabs = () => (
-    <div style={{ display: 'flex', gap: '20px', borderBottom: '2px solid #e2e8f0', marginBottom: '30px', overflowX: 'auto' }}>
+    <div style={{ display: 'flex', gap: isMobile ? '15px' : '25px', borderBottom: '2px solid #e2e8f0', marginBottom: '30px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
       {['SETS', 'CLASSES', 'REPORTS'].map(tab => (
         <button 
           key={tab} onClick={() => { setActiveTab(tab); setEditingSet(null); }}
@@ -114,16 +125,17 @@ export default function VocabularyManager() {
   if (editingSet) {
     return (
       <div style={{ padding: isMobile ? '15px' : '30px', backgroundColor: '#f8fafc', minHeight: '100vh', fontFamily: "'Josefin Sans', sans-serif", paddingBottom: '100px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '30px' }}>
-          <button onClick={() => setEditingSet(null)} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontWeight: '700', fontSize: '15px' }}>
+        
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', marginBottom: '30px', gap: '15px' }}>
+          <button onClick={() => setEditingSet(null)} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontWeight: '700', fontSize: '15px', padding: 0 }}>
             <SvgIcons.Back /> Back to Library
           </button>
-          <button onClick={handleSaveSet} style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#003366', color: 'white', padding: '12px 24px', borderRadius: '100px', fontWeight: '700', border: 'none', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(0,51,102,0.2)' }}>
+          <button onClick={handleSaveSet} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', backgroundColor: '#003366', color: 'white', padding: '12px 24px', borderRadius: '100px', fontWeight: '700', border: 'none', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(0,51,102,0.2)', width: isMobile ? '100%' : 'auto' }}>
             <SvgIcons.Save /> Save Set
           </button>
         </div>
 
-        <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: '30px' }}>
+        <div style={{ backgroundColor: 'white', padding: isMobile ? '20px' : '24px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: '30px' }}>
           <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '20px' }}>
             <div style={{ flex: 2 }}>
               <label style={{ display: 'block', fontWeight: '700', color: '#003366', marginBottom: '8px', fontSize: '13px' }}>Title (Tên bộ thẻ)</label>
@@ -138,24 +150,27 @@ export default function VocabularyManager() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           {editingSet.cards.map((card, idx) => (
-            <div key={card.id} style={{ backgroundColor: 'white', padding: '20px', borderRadius: '16px', border: '1px solid #cbd5e1', position: 'relative' }}>
+            <div key={card.id} style={{ backgroundColor: 'white', padding: isMobile ? '20px' : '24px', borderRadius: '16px', border: '1px solid #cbd5e1', position: 'relative' }}>
+              
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', borderBottom: '1px dashed #e2e8f0', paddingBottom: '12px' }}>
                 <div style={{ fontWeight: '800', color: '#003366' }}>{idx + 1}</div>
-                <button onClick={() => setEditingSet({...editingSet, cards: editingSet.cards.filter(c => c.id !== card.id)})} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}><SvgIcons.Trash /></button>
+                <button onClick={() => setEditingSet({...editingSet, cards: editingSet.cards.filter(c => c.id !== card.id)})} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 0 }}><SvgIcons.Trash /></button>
               </div>
+              
               <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '20px', marginBottom: '16px' }}>
                 <div style={{ flex: 1 }}>
                   <label style={{ fontWeight: '700', color: '#64748b', fontSize: '12px', textTransform: 'uppercase' }}>Term (Thuật ngữ)</label>
-                  <input type="text" value={card.term} onChange={e => { const newCards = [...editingSet.cards]; newCards[idx].term = e.target.value; setEditingSet({...editingSet, cards: newCards}); }} style={{ width: '100%', border: 'none', borderBottom: '2px solid #cbd5e1', padding: '8px 0', outline: 'none', fontSize: '16px', fontWeight: '700', color: '#003366' }} placeholder="Nhập từ vựng..." />
+                  <input type="text" value={card.term} onChange={e => { const newCards = [...editingSet.cards]; newCards[idx].term = e.target.value; setEditingSet({...editingSet, cards: newCards}); }} style={{ width: '100%', border: 'none', borderBottom: '2px solid #cbd5e1', padding: '8px 0', outline: 'none', fontSize: '16px', fontWeight: '700', color: '#003366', boxSizing: 'border-box' }} placeholder="Nhập từ vựng..." />
                 </div>
                 <div style={{ flex: 1 }}>
                   <label style={{ fontWeight: '700', color: '#64748b', fontSize: '12px', textTransform: 'uppercase' }}>Definition (Định nghĩa)</label>
-                  <input type="text" value={card.definition} onChange={e => { const newCards = [...editingSet.cards]; newCards[idx].definition = e.target.value; setEditingSet({...editingSet, cards: newCards}); }} style={{ width: '100%', border: 'none', borderBottom: '2px solid #cbd5e1', padding: '8px 0', outline: 'none', fontSize: '15px' }} placeholder="Nhập định nghĩa tiếng Việt/Anh..." />
+                  <input type="text" value={card.definition} onChange={e => { const newCards = [...editingSet.cards]; newCards[idx].definition = e.target.value; setEditingSet({...editingSet, cards: newCards}); }} style={{ width: '100%', border: 'none', borderBottom: '2px solid #cbd5e1', padding: '8px 0', outline: 'none', fontSize: '15px', color: '#334155', boxSizing: 'border-box' }} placeholder="Nhập định nghĩa..." />
                 </div>
               </div>
+              
               <div>
                 <label style={{ fontWeight: '700', color: '#64748b', fontSize: '12px', textTransform: 'uppercase' }}>Example (Ví dụ)</label>
-                <textarea value={card.example} onChange={e => { const newCards = [...editingSet.cards]; newCards[idx].example = e.target.value; setEditingSet({...editingSet, cards: newCards}); }} style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '12px', outline: 'none', fontSize: '14px', resize: 'vertical', minHeight: '60px', marginTop: '8px', boxSizing: 'border-box' }} placeholder="Ví dụ trong câu..." />
+                <textarea value={card.example} onChange={e => { const newCards = [...editingSet.cards]; newCards[idx].example = e.target.value; setEditingSet({...editingSet, cards: newCards}); }} style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: '8px', padding: '12px', outline: 'none', fontSize: '14px', resize: 'vertical', minHeight: '60px', marginTop: '8px', boxSizing: 'border-box', fontFamily: 'inherit' }} placeholder="Ví dụ trong câu..." />
               </div>
             </div>
           ))}
@@ -177,7 +192,7 @@ export default function VocabularyManager() {
       {/* TAB SETS */}
       {activeTab === 'SETS' && (
         <div>
-          <button onClick={handleCreateNewSet} style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#003366', color: 'white', padding: '12px 24px', borderRadius: '100px', fontWeight: '700', border: 'none', cursor: 'pointer', marginBottom: '24px' }}>
+          <button onClick={handleCreateNewSet} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', backgroundColor: '#003366', color: 'white', padding: '12px 24px', borderRadius: '100px', fontWeight: '700', border: 'none', cursor: 'pointer', marginBottom: '24px', width: isMobile ? '100%' : 'auto' }}>
             <SvgIcons.Plus /> Tạo Bộ Thẻ Mới
           </button>
           
@@ -188,8 +203,8 @@ export default function VocabularyManager() {
                 <h3 style={{ color: '#003366', margin: '0 0 10px 0', fontSize: '18px', fontWeight: '800' }}>{set.title}</h3>
                 <p style={{ color: '#64748b', fontSize: '14px', margin: '0 0 20px 0' }}>{set.cards?.length || 0} terms</p>
                 <div style={{ display: 'flex', gap: '10px' }}>
-                  <button onClick={() => setEditingSet(set)} style={{ flex: 1, padding: '8px', backgroundColor: '#f0f9ff', color: '#0369a1', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>Sửa</button>
-                  <button onClick={() => handleDeleteSet(set.id)} style={{ padding: '8px 12px', backgroundColor: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: '8px', cursor: 'pointer' }}><SvgIcons.Trash /></button>
+                  <button onClick={() => setEditingSet(set)} style={{ flex: 1, padding: '10px', backgroundColor: '#f0f9ff', color: '#0369a1', border: 'none', borderRadius: '8px', fontWeight: '700', cursor: 'pointer' }}>Sửa</button>
+                  <button onClick={() => handleDeleteSet(set.id)} style={{ padding: '10px 14px', backgroundColor: '#fef2f2', color: '#ef4444', border: 'none', borderRadius: '8px', cursor: 'pointer' }}><SvgIcons.Trash /></button>
                 </div>
               </div>
             ))}
@@ -199,30 +214,33 @@ export default function VocabularyManager() {
 
       {/* TAB CLASSES */}
       {activeTab === 'CLASSES' && (
-        <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+        <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ minWidth: '500px', width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #cbd5e1' }}>
               <tr>
-                <th style={{ padding: '16px', color: '#475569', fontWeight: '800' }}>Class (Room)</th>
+                <th style={{ padding: '16px', color: '#475569', fontWeight: '800', width: '30%' }}>Class (Room)</th>
                 <th style={{ padding: '16px', color: '#475569', fontWeight: '800' }}>Assigned Vocabulary Set</th>
               </tr>
             </thead>
             <tbody>
-              {rooms.map(room => (
-                <tr key={room.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <td style={{ padding: '16px', color: '#003366', fontWeight: '700' }}>{room.id}</td>
-                  <td style={{ padding: '16px' }}>
-                    <select 
-                      value={room.assignedVocabId || ''} 
-                      onChange={(e) => handleAssignSetToRoom(room.id, e.target.value)}
-                      style={{ width: '100%', maxWidth: '300px', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontWeight: '600', color: '#334155' }}
-                    >
-                      <option value="">-- Không gán thẻ --</option>
-                      {vocabSets.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
-                    </select>
-                  </td>
-                </tr>
-              ))}
+              {rooms.map(room => {
+                const actualRoomId = room.roomId || room.id; // Chắc chắn đồng bộ ID
+                return (
+                  <tr key={room.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ padding: '16px', color: '#003366', fontWeight: '700' }}>{actualRoomId}</td>
+                    <td style={{ padding: '16px' }}>
+                      <select 
+                        value={room.assignedVocabId || ''} 
+                        onChange={(e) => handleAssignSetToRoom(actualRoomId, e.target.value)}
+                        style={{ width: '100%', minWidth: '200px', maxWidth: '400px', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontWeight: '600', color: '#334155', backgroundColor: 'white', appearance: 'none', cursor: 'pointer' }}
+                      >
+                        <option value="">-- Không gán thẻ --</option>
+                        {vocabSets.map(s => <option key={s.id} value={s.id}>{s.title}</option>)}
+                      </select>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -230,7 +248,7 @@ export default function VocabularyManager() {
 
       {/* TAB REPORTS */}
       {activeTab === 'REPORTS' && (
-        <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflowX: 'auto' }}>
+        <div style={{ backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           <table style={{ minWidth: '700px', width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
             <thead style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #cbd5e1' }}>
               <tr>

@@ -1,6 +1,6 @@
 // src/pages/teacher/CreateExercise.jsx
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import Button from '../../components/Button';
@@ -34,8 +34,26 @@ const RichTextInput = ({ label, value, onChange, placeholder, minHeight = '60px'
     }
   }, [value]);
 
+  const focusEditorAndGetSelection = () => {
+    const sel = window.getSelection();
+    let range;
+
+    if (sel.rangeCount > 0 && editorRef.current.contains(sel.anchorNode)) {
+      range = sel.getRangeAt(0).cloneRange();
+    } else {
+      editorRef.current.focus();
+      range = document.createRange();
+      range.selectNodeContents(editorRef.current);
+      range.collapse(false); // Move cursor to end
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    return { sel, range };
+  };
+
   const handleCommand = (cmd, e) => {
     e.preventDefault(); 
+    focusEditorAndGetSelection();
     document.execCommand(cmd, false, null);
     if (editorRef.current) {
       onChange(editorRef.current.innerHTML);
@@ -44,12 +62,24 @@ const RichTextInput = ({ label, value, onChange, placeholder, minHeight = '60px'
 
   const handleInsertImage = (e) => {
     e.preventDefault();
+    
+    // Ghi nhớ chính xác vùng chọn của Editor HIỆN TẠI
+    const { sel, range } = focusEditorAndGetSelection();
+
+    // Mở prompt nhập link
     const url = window.prompt("Nhập đường dẫn (URL) hình ảnh:");
+    
     if (url && url.trim() !== '') {
-      // Chèn ảnh với CSS inline tối ưu cho cả Web & Mobile
-      const imgHtml = `<img src="${url}" alt="image" style="max-width: 100%; max-height: 200px; object-fit: contain; border-radius: 8px; display: block; margin: 10px auto;" />`;
-      document.execCommand('insertHTML', false, imgHtml);
-      if (editorRef.current) onChange(editorRef.current.innerHTML);
+      if (editorRef.current) {
+        // Phục hồi lại tiêu điểm (focus) vào đúng Editor này
+        editorRef.current.focus();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        
+        const imgHtml = `<img src="${url}" alt="image" style="max-width: 100%; max-height: 200px; object-fit: contain; border-radius: 8px; display: block; margin: 10px auto;" />`;
+        document.execCommand('insertHTML', false, imgHtml);
+        onChange(editorRef.current.innerHTML);
+      }
     }
   };
 
@@ -134,8 +164,10 @@ const SectionFooter = ({ section, onAddQuestion, isMobile }) => {
 export default function CreateExercise() {
   const navigate = useNavigate();
   const { quizId } = useParams(); 
+  const location = useLocation();
   const fileInputRef = useRef(null); 
   
+  const [folderId, setFolderId] = useState(location.state?.folderId || null);
   const [quizTitle, setQuizTitle] = useState('');
   const [quizMode, setQuizMode] = useState('SINGLE');
   const [sections, setSections] = useState([]);
@@ -156,10 +188,17 @@ export default function CreateExercise() {
             const data = docSnap.data();
             setQuizTitle(data.title || '');
             setQuizMode(data.quizMode || 'SINGLE');
+            if (data.folderId) setFolderId(data.folderId);
             
             if (data.sections) {
               setSections(data.sections);
-              setQuestions(data.questions || []);
+              setQuestions((data.questions || []).map(q => {
+                if (q.type === 'SAQ') {
+                  const answersArr = q.correctText ? q.correctText.split(',').map(s=>s.trim()) : [''];
+                  return { ...q, correctAnswers: answersArr.length > 0 ? answersArr : [''] };
+                }
+                return q;
+              }));
             } else {
               const defaultSecId = 'sec_' + Date.now();
               if (data.passage) {
@@ -167,7 +206,14 @@ export default function CreateExercise() {
               } else {
                 setSections([{ id: defaultSecId, type: 'SINGLE', title: 'Part 1' }]);
               }
-              setQuestions((data.questions || []).map(q => ({ ...q, sectionId: defaultSecId })));
+              setQuestions((data.questions || []).map(q => {
+                let mappedQ = { ...q, sectionId: defaultSecId };
+                if (mappedQ.type === 'SAQ') {
+                  const answersArr = mappedQ.correctText ? mappedQ.correctText.split(',').map(s=>s.trim()) : [''];
+                  mappedQ.correctAnswers = answersArr.length > 0 ? answersArr : [''];
+                }
+                return mappedQ;
+              }));
             }
           }
         } catch (error) { console.error("Error:", error); }
@@ -206,7 +252,15 @@ export default function CreateExercise() {
         if (data.title) setQuizTitle(data.title);
         if (data.quizMode) setQuizMode(data.quizMode);
         if (data.sections) setSections(data.sections);
-        if (data.questions) setQuestions(data.questions);
+        if (data.questions) {
+          setQuestions(data.questions.map(q => {
+              if (q.type === 'SAQ') {
+                  const answersArr = q.correctText ? q.correctText.split(',').map(s=>s.trim()) : [''];
+                  return { ...q, correctAnswers: answersArr.length > 0 ? answersArr : [''] };
+              }
+              return q;
+          }));
+        }
       } catch (err) { alert("File JSON không hợp lệ hoặc cấu trúc cũ!"); }
       event.target.value = null;
     };
@@ -260,7 +314,7 @@ export default function CreateExercise() {
         newQ.wordLimit = 3;
         break;
       case 'SAQ':
-        newQ.correctText = '';
+        newQ.correctAnswers = [''];
         newQ.wordLimit = 3;
         break;
       default:
@@ -338,13 +392,28 @@ export default function CreateExercise() {
     if (!quizTitle.trim() || questions.length === 0) return alert("Vui lòng điền tên bài tập và tạo ít nhất 1 câu hỏi!");
     setIsLoading(true);
     try {
-      await setDoc(doc(db, "quizzes", quizId || 'q_' + Date.now()), {
+      const questionsToSave = questions.map(q => {
+        const copy = { ...q };
+        if (copy.type === 'SAQ') {
+          copy.correctText = (copy.correctAnswers || []).filter(a => a.trim() !== '').join(',');
+          delete copy.correctAnswers;
+        }
+        return copy;
+      });
+
+      const quizDataToSave = {
         title: quizTitle, 
         quizMode: quizMode,
         sections: sections,
-        questions: questions, 
+        questions: questionsToSave, 
         modified: new Date().toISOString().split('T')[0]
-      }, { merge: true });
+      };
+
+      if (!quizId && folderId) {
+        quizDataToSave.folderId = folderId;
+      }
+
+      await setDoc(doc(db, "quizzes", quizId || 'q_' + Date.now()), quizDataToSave, { merge: true });
       alert("Đã lưu bài tập thành công!");
       navigate('/teacher/exercises');
     } catch (error) { alert("Lỗi lưu bài tập!"); }
@@ -354,7 +423,6 @@ export default function CreateExercise() {
   return (
     <div style={{ paddingBottom: '120px', backgroundColor: '#f8fafc', minHeight: '100vh', padding: isMobile ? '15px' : '30px', fontFamily: "'Josefin Sans', sans-serif" }}>
       
-      {/* STYLE RENDER PLACEHOLDER CHO CONTENTEDITABLE */}
       <style>
         {`
           .rich-text-editor:empty:before {
@@ -640,8 +708,38 @@ export default function CreateExercise() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                           <RichTextInput label="Question Prompt (Nội dung câu hỏi ngắn)" value={q.text} onChange={val => updateQuestion(q.id, 'text', val)} placeholder="Nhập câu hỏi ngắn..." />
                           <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '15px' }}>
-                            <div style={{ flex: 1 }}><Input label="Correct Answer (Nhiều đáp án cách nhau bằng dấu phẩy)" value={q.correctText || ''} onChange={e => updateQuestion(q.id, 'correctText', e.target.value)} /></div>
-                            <div style={{ width: isMobile ? '100%' : '180px' }}><Input label="Word Limit" type="number" value={q.wordLimit || 3} onChange={e => updateQuestion(q.id, 'wordLimit', e.target.value)} /></div>
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                              <label style={{ fontWeight: '700', fontSize: '13px', color: '#003366' }}>Các đáp án đúng được chấp nhận:</label>
+                              {(q.correctAnswers || ['']).map((ans, i) => (
+                                 <div key={i} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                                   <input 
+                                     type="text"
+                                     value={ans} 
+                                     onChange={e => {
+                                       const newAns = [...(q.correctAnswers || [''])];
+                                       newAns[i] = e.target.value;
+                                       updateQuestion(q.id, 'correctAnswers', newAns);
+                                     }} 
+                                     placeholder={`Đáp án đúng ${i + 1}`} 
+                                     style={{ flex: 1, padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px', color: '#334155', boxSizing: 'border-box' }}
+                                   />
+                                   {(q.correctAnswers || ['']).length > 1 && (
+                                     <button onClick={() => {
+                                       const newAns = (q.correctAnswers || ['']).filter((_, idx) => idx !== i);
+                                       updateQuestion(q.id, 'correctAnswers', newAns);
+                                     }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}>
+                                       <SvgIcons.Trash />
+                                     </button>
+                                   )}
+                                 </div>
+                              ))}
+                              <button onClick={() => updateQuestion(q.id, 'correctAnswers', [...(q.correctAnswers || ['']), ''])} style={{ display: 'flex', alignItems: 'center', gap: '6px', alignSelf: 'flex-start', background: 'none', border: '1px dashed #cbd5e1', color: '#003366', fontWeight: '700', fontSize: '13px', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', marginTop: '4px' }}>
+                                <SvgIcons.Plus /> Thêm đáp án đúng
+                              </button>
+                            </div>
+                            <div style={{ width: isMobile ? '100%' : '180px' }}>
+                              <Input label="Word Limit" type="number" value={q.wordLimit || 3} onChange={e => updateQuestion(q.id, 'wordLimit', e.target.value)} />
+                            </div>
                           </div>
                         </div>
                       )}
