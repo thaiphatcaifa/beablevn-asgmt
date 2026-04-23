@@ -13,7 +13,7 @@ const SvgIcons = {
   Users: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>,
   ChevronLeft: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>,
   ChevronRight: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>,
-  // Emoji Icons cho Thi đua
+  Rocket: () => <svg width="24" height="24" fill="currentColor" viewBox="0 0 24 24"><path d="M13.5 22H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v6.5"></path><path d="M22 17.5L18 22l-4.5-4.5"></path><line x1="18" y1="22" x2="18" y2="12"></line></svg>,
   RaceRocket: () => <span style={{ fontSize: '36px', display: 'inline-block', lineHeight: 1 }}>🚀</span>,
   RaceUFO: () => <span style={{ fontSize: '36px', display: 'inline-block', lineHeight: 1 }}>🛸</span>,
   RaceCar: () => <span style={{ fontSize: '36px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🏎️</span>,
@@ -37,7 +37,6 @@ const formatTime = (isoString) => {
   return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 };
 
-// Màu sắc các đội thi đua
 const TEAM_COLORS = [
   { name: 'Xanh dương', hex: '#3b82f6' }, { name: 'Hồng', hex: '#ec4899' },
   { name: 'Xanh lá', hex: '#10b981' }, { name: 'Vàng', hex: '#eab308' },
@@ -78,9 +77,15 @@ export default function LiveResults() {
         const activeSess = data.activeSession || null;
         setSessionInfo(activeSess);
 
-        if (activeSess && activeSess.quizId && (!quizData || quizData.id !== activeSess.quizId)) {
-          const qSnap = await getDoc(doc(db, "quizzes", activeSess.quizId));
-          if (qSnap.exists()) setQuizData({ id: qSnap.id, ...qSnap.data() });
+        if (activeSess) {
+          const activeQuizId = activeSess.mode === 'Weekly' && activeSess.activeDays 
+                ? activeSess.activeDays[activeSess.currentDayIndex]?.quizId 
+                : activeSess.quizId;
+
+          if (activeQuizId && (!quizData || quizData.id !== activeQuizId)) {
+            const qSnap = await getDoc(doc(db, "quizzes", activeQuizId));
+            if (qSnap.exists()) setQuizData({ id: qSnap.id, ...qSnap.data() });
+          }
         }
       }
     });
@@ -90,7 +95,7 @@ export default function LiveResults() {
     });
 
     return () => { roomUnsub(); subUnsub(); };
-  }, [activeRoom]);
+  }, [activeRoom, quizData]);
 
   const evaluateAnswer = (question, studentAnswer) => {
     if (!studentAnswer) return false;
@@ -129,58 +134,92 @@ export default function LiveResults() {
     return false;
   };
 
+  const processAndSaveReport = async (saveQuizData, saveSessionInfo, isAutoWeekly = false) => {
+    const questionsToSave = saveQuizData.questions.map(q => ({ 
+      id: q.id, type: q.type, text: q.text,
+      options: q.options || [], correctOptions: q.correctOptions || [], correctOption: q.correctOption || '',
+      correctMatch: q.correctMatch || '', correctText: q.correctText || '',
+      gaps: q.gaps || [], labels: q.labels || [], explanation: q.explanation || ''
+    }));
+    
+    // Đọc Submissions TƯƠI từ Firebase tại thời điểm gọi hàm để tránh bị miss data
+    const subDocsSnap = await getDocs(collection(db, `rooms/${activeRoom}/submissions`));
+    const currentSubmissions = subDocsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+    const processedSubmissions = roster.map(student => {
+      const sub = currentSubmissions.find(s => s.studentId === student.studentId || s.id === student.studentId);
+      const evaluatedAnswers = {};
+      let correctCount = 0;
+
+      saveQuizData.questions.forEach(q => {
+        const stAns = sub?.answers?.[q.id] || '';
+        const isCorrect = evaluateAnswer(q, stAns);
+        if (isCorrect) correctCount++;
+        evaluatedAnswers[q.id] = { answer: stAns, isCorrect };
+      });
+
+      const score = Math.round((correctCount / saveQuizData.questions.length) * 100) || 0;
+      return { ...student, answers: evaluatedAnswers, score, submitted: !!sub?.submittedAt, sessions: sub?.sessions || [], team: sub?.team || null };
+    });
+
+    let reportName = saveSessionInfo.quizTitle || "Untitled Activity";
+    if (saveSessionInfo.mode === 'Weekly' && saveSessionInfo.activeDays) {
+       const d = saveSessionInfo.activeDays[saveSessionInfo.currentDayIndex];
+       if (d) reportName = `[Weekly - ${d.day}] ${d.quizTitle}`;
+    }
+
+    const reportData = {
+      name: reportName, date: new Date().toISOString(), room: activeRoom,
+      type: saveSessionInfo.mode || "Quiz", totalStudents: roster.length,
+      questions: questionsToSave, submissions: processedSubmissions
+    };
+
+    await addDoc(collection(db, "reports"), reportData);
+
+    // Xóa Submissions sau khi lưu Report
+    for (const subDoc of subDocsSnap.docs) {
+      await deleteDoc(doc(db, `rooms/${activeRoom}/submissions`, subDoc.id));
+    }
+
+    if (saveSessionInfo.mode === 'Weekly') {
+       const nextIndex = saveSessionInfo.currentDayIndex + 1;
+       if (nextIndex < saveSessionInfo.activeDays.length) {
+          await updateDoc(doc(db, "rooms", activeRoom), { "activeSession.currentDayIndex": nextIndex });
+       } else {
+          await updateDoc(doc(db, "rooms", activeRoom), { activeSession: null });
+       }
+    } else {
+       await updateDoc(doc(db, "rooms", activeRoom), { activeSession: null });
+    }
+
+    if (!isAutoWeekly) {
+       alert("Đã lưu kết quả thành công vào Reports!");
+       navigate('/teacher/reports');
+    }
+  };
+
   const handleFinishActivity = async () => {
     if (!window.confirm("Bạn có chắc muốn kết thúc bài tập này? Kết quả sẽ được lưu vào Reports.")) return;
     if (!activeRoom || !sessionInfo || !quizData) return;
-
-    try {
-      const questionsToSave = quizData.questions.map(q => ({ 
-        id: q.id, type: q.type, text: q.text,
-        options: q.options || [], correctOptions: q.correctOptions || [], correctOption: q.correctOption || '',
-        correctMatch: q.correctMatch || '', correctText: q.correctText || '',
-        gaps: q.gaps || [], labels: q.labels || [], explanation: q.explanation || ''
-      }));
-      
-      const processedSubmissions = roster.map(student => {
-        const sub = submissions.find(s => s.studentId === student.studentId || s.id === student.studentId);
-        const evaluatedAnswers = {};
-        let correctCount = 0;
-
-        quizData.questions.forEach(q => {
-          const stAns = sub?.answers?.[q.id] || '';
-          const isCorrect = evaluateAnswer(q, stAns);
-          if (isCorrect) correctCount++;
-          evaluatedAnswers[q.id] = { answer: stAns, isCorrect };
-        });
-
-        const score = Math.round((correctCount / quizData.questions.length) * 100) || 0;
-        return { ...student, answers: evaluatedAnswers, score, submitted: !!sub?.submittedAt, sessions: sub?.sessions || [], team: sub?.team || null };
-      });
-
-      const reportData = {
-        name: sessionInfo.quizTitle || "Untitled Activity",
-        date: new Date().toISOString(),
-        room: activeRoom,
-        type: sessionInfo.mode || "Quiz",
-        totalStudents: roster.length,
-        questions: questionsToSave,
-        submissions: processedSubmissions
-      };
-
-      await addDoc(collection(db, "reports"), reportData);
-
-      const subDocs = await getDocs(collection(db, `rooms/${activeRoom}/submissions`));
-      for (const subDoc of subDocs.docs) await deleteDoc(doc(db, `rooms/${activeRoom}/submissions`, subDoc.id));
-
-      await updateDoc(doc(db, "rooms", activeRoom), { activeSession: null });
-
-      alert("Đã lưu kết quả thành công vào Reports!");
-      navigate('/teacher/reports');
-    } catch (error) {
-      console.error("Lỗi khi lưu Report:", error);
-      alert("Có lỗi xảy ra khi kết thúc Activity.");
-    }
+    await processAndSaveReport(quizData, sessionInfo, false);
   };
+
+  // --- AUTO-TRANSITION LOGIC CHO WEEKLY ---
+  useEffect(() => {
+    if (!activeRoom || !sessionInfo || sessionInfo.mode !== 'Weekly' || !quizData) return;
+    const currentDayIndex = sessionInfo.currentDayIndex;
+    const currentDay = sessionInfo.activeDays[currentDayIndex];
+    if (!currentDay) return;
+
+    const checkTransition = async () => {
+       if (Date.now() > new Date(currentDay.endTime).getTime()) {
+           console.log("Weekly Auto Transition Triggered for Day:", currentDay.day);
+           await processAndSaveReport(quizData, sessionInfo, true);
+       }
+    };
+    const int = setInterval(checkTransition, 10000); // Quét mỗi 10 giây
+    return () => clearInterval(int);
+  }, [sessionInfo, activeRoom, quizData, roster]); // Phụ thuộc vào roster để build report
 
   const currentQIndex = sessionInfo?.currentQuestionIndex || 0;
   const handleNextQ = async () => {
@@ -200,9 +239,15 @@ export default function LiveResults() {
 
   const isTeacherPaced = sessionInfo.mode === 'Teacher Paced';
   const isSpaceRace = sessionInfo.mode === 'Space Race';
+  const isWeekly = sessionInfo.mode === 'Weekly';
   const isOneAttempt = sessionInfo.settings?.oneAttempt;
 
-  // --- LOGIC TÍNH ĐIỂM CHO SPACE RACE ---
+  let displayTitle = sessionInfo.quizTitle;
+  if (isWeekly && sessionInfo.activeDays) {
+     const d = sessionInfo.activeDays[sessionInfo.currentDayIndex];
+     if (d) displayTitle = `[Weekly] ${d.day}: ${d.quizTitle}`;
+  }
+
   const getRaceProgress = () => {
     if (!isSpaceRace) return [];
     const numTeams = sessionInfo.settings?.teamCount || 2;
@@ -226,13 +271,10 @@ export default function LiveResults() {
     });
   };
 
-  // --- COMPONENT HIỂN THỊ EMOJI PHÁT SÁNG THEO ĐỘI ---
   const RenderRaceIcon = ({ iconType, color }) => {
     return (
       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        {/* Vòng sáng Glowing background */}
         <div style={{ position: 'absolute', width: '40px', height: '40px', borderRadius: '50%', backgroundColor: color, filter: 'blur(12px)', opacity: 0.6, zIndex: 0 }}></div>
-        {/* Emoji chính */}
         <div style={{ position: 'relative', zIndex: 1, filter: `drop-shadow(0 2px 4px rgba(0,0,0,0.3))` }}>
           {iconType === 'Rocket' && <SvgIcons.RaceRocket />}
           {iconType === 'UFO' && <SvgIcons.RaceUFO />}
@@ -252,7 +294,7 @@ export default function LiveResults() {
       {/* HEADER & CONTROLS */}
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', marginBottom: '30px', backgroundColor: 'white', padding: isMobile ? '16px' : '24px', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', gap: '15px' }}>
         <div>
-          <h2 style={{ color: '#003366', margin: 0, fontWeight: '800', fontSize: isMobile ? '20px' : '24px', textTransform: 'uppercase' }}>{sessionInfo.quizTitle}</h2>
+          <h2 style={{ color: '#003366', margin: 0, fontWeight: '800', fontSize: isMobile ? '18px' : '22px', textTransform: 'uppercase' }}>{displayTitle}</h2>
           <p style={{ color: '#64748b', margin: '8px 0 0 0', fontSize: '14px', fontWeight: '500' }}>Room: <span style={{ color: '#e67e22', fontWeight: '700' }}>{activeRoom}</span> • Mode: <span style={{ fontWeight: '600', color: '#334155' }}>{sessionInfo.mode}</span></p>
         </div>
         
@@ -357,7 +399,7 @@ export default function LiveResults() {
                                     <div><span style={{ color: '#94a3b8' }}>Ra:</span> {sess.exitTime ? formatTime(sess.exitTime) : '--:--'}</div>
                                   </div>
                                   <div style={{ color: '#0ea5e9', fontWeight: '800', marginTop: '6px', borderTop: '1px dashed #cbd5e1', paddingTop: '4px' }}>
-                                    {isOneAttempt 
+                                    {(isOneAttempt || isWeekly)
                                       ? `Đã làm: ${sess.completedCount} câu` 
                                       : `Điểm: ${sess.score}%`}
                                   </div>

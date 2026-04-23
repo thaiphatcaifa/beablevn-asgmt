@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 
-// --- HỆ THỐNG SVG ICONS TỐI GIẢN & EMOJI SỐNG ĐỘNG ---
+// --- HỆ THỐNG SVG ICONS TỐI GIẢN ---
 const SvgIcons = {
   Submit: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>,
   Wait: () => <svg width="48" height="48" fill="none" stroke="#003366" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>,
@@ -21,16 +21,9 @@ const SvgIcons = {
   Quiz: () => <svg width="40" height="40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>,
   Book: () => <svg width="40" height="40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>,
   Timer: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>,
-  // Emoji Icons cho Thi đua
-  RaceRocket: () => <span style={{ fontSize: '64px', display: 'inline-block', lineHeight: 1 }}>🚀</span>,
-  RaceUFO: () => <span style={{ fontSize: '64px', display: 'inline-block', lineHeight: 1 }}>🛸</span>,
-  RaceCar: () => <span style={{ fontSize: '64px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🏎️</span>,
-  RaceBug: () => <span style={{ fontSize: '64px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🐛</span>,
-  RaceDino: () => <span style={{ fontSize: '64px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🦖</span>,
-  RaceHorse: () => <span style={{ fontSize: '64px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🐎</span>,
+  Race: () => <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg>
 };
 
-// --- MÀU SẮC ĐỘI THI ĐUA ---
 const TEAM_COLORS = [
   { name: 'Xanh dương', hex: '#3b82f6' }, { name: 'Hồng', hex: '#ec4899' },
   { name: 'Xanh lá', hex: '#10b981' }, { name: 'Vàng', hex: '#eab308' },
@@ -43,17 +36,16 @@ export default function DoAssignment() {
   const { roomId } = useParams(); 
   const navigate = useNavigate();
   
-  // States chung
-  const [view, setView] = useState('DASHBOARD');
+  const [view, setView] = useState('DASHBOARD'); // WAITING_START, DASHBOARD, QUIZ, ...
+  const [waitingMsg, setWaitingMsg] = useState('');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const studentId = localStorage.getItem('currentStudentId');
 
   const [roomData, setRoomData] = useState(null);
-  
-  // Quiz States
   const [quiz, setQuiz] = useState(null);
   const [shuffledQuiz, setShuffledQuiz] = useState(null);
   const [sessionInfo, setSessionInfo] = useState(null);
+  
   const [localAnswers, setLocalAnswers] = useState({});
   const [lockedQuestions, setLockedQuestions] = useState({});
   const [isSubmitted, setIsSubmitted] = useState(false);
@@ -61,10 +53,7 @@ export default function DoAssignment() {
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const sessionsRef = useRef([]);
 
-  // --- SPACE RACE STATE ---
   const [studentTeam, setStudentTeam] = useState(null);
-
-  // --- TIMER STATE ---
   const [timeLeft, setTimeLeft] = useState(null);
   const [studentStartTime, setStudentStartTime] = useState(null);
   const autoSubmitFired = useRef(false);
@@ -74,7 +63,6 @@ export default function DoAssignment() {
   const shuffledQuizRef = useRef(shuffledQuiz);
   useEffect(() => { shuffledQuizRef.current = shuffledQuiz; }, [shuffledQuiz]);
 
-  // Vocab States
   const [vocabSet, setVocabSet] = useState(null);
   const [vocabCardIndex, setVocabCardIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -84,7 +72,6 @@ export default function DoAssignment() {
   const [matchSelected, setMatchSelected] = useState(null);
   const [matchStartTime, setMatchStartTime] = useState(null);
 
-  // Modal / Menu
   const [showVerification, setShowVerification] = useState(true);
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef(null);
@@ -114,11 +101,21 @@ export default function DoAssignment() {
         const data = snap.data();
         setRoomData(data);
         
-        const activeSession = data.activeSession;
-        if (activeSession && activeSession.status === 'active') {
-          setSessionInfo(activeSession);
-          const quizSnap = await getDoc(doc(db, "quizzes", activeSession.quizId));
-          if (quizSnap.exists()) setQuiz({ id: activeSession.quizId, ...quizSnap.data() });
+        const activeSess = data.activeSession;
+        if (activeSess && activeSess.status === 'active') {
+          setSessionInfo(activeSess);
+          
+          let activeQuizId = null;
+          if (activeSess.mode === 'Weekly') {
+              activeQuizId = activeSess.activeDays[activeSess.currentDayIndex]?.quizId;
+          } else {
+              activeQuizId = activeSess.quizId;
+          }
+
+          if (activeQuizId && (!quiz || quiz.id !== activeQuizId)) {
+            const quizSnap = await getDoc(doc(db, "quizzes", activeQuizId));
+            if (quizSnap.exists()) setQuiz({ id: activeQuizId, ...quizSnap.data() });
+          }
         } else {
           setQuiz(null); setSessionInfo(null); setShuffledQuiz(null); setStudentTeam(null);
         }
@@ -132,8 +129,39 @@ export default function DoAssignment() {
       }
     });
     return () => unsubscribe();
-  }, [roomId]);
+  }, [roomId, quiz]);
 
+  // LOGIC KIỂM TRA KHUNG GIỜ WEEKLY
+  useEffect(() => {
+     if (sessionInfo?.mode === 'Weekly') {
+         const currentDay = sessionInfo.activeDays[sessionInfo.currentDayIndex];
+         if (!currentDay) return;
+         
+         const checkWeeklyTime = () => {
+            const now = Date.now();
+            const startMs = new Date(currentDay.startTime).getTime();
+            const endMs = new Date(currentDay.endTime).getTime();
+
+            if (now < startMs) {
+                setView('WAITING_START');
+                const timeString = new Date(startMs).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                const dateString = new Date(startMs).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                setWaitingMsg(`Bài tập ${currentDay.day} sẽ mở vào lúc ${timeString} ngày ${dateString}`);
+            } else if (now > endMs) {
+                setView('WAITING_START');
+                setWaitingMsg("Đã hết hạn làm bài. Đang chờ hệ thống tự động cập nhật bài mới...");
+            } else {
+                if (view === 'WAITING_START') setView('DASHBOARD');
+            }
+         };
+         
+         checkWeeklyTime();
+         const int = setInterval(checkWeeklyTime, 5000);
+         return () => clearInterval(int);
+     }
+  }, [sessionInfo, view]);
+
+  // RESET KHI CHUYỂN BÀI MỚI HOẶC NGÀY MỚI (WEEKLY)
   useEffect(() => {
     if (sessionInfo?.startTime) {
       setIsInitialized(false);
@@ -144,8 +172,9 @@ export default function DoAssignment() {
       sessionsRef.current = [];
       autoSubmitFired.current = false;
       setStudentStartTime(null);
+      if(sessionInfo.mode !== 'Weekly' && view === 'WAITING_START') setView('DASHBOARD');
     }
-  }, [sessionInfo?.startTime]);
+  }, [sessionInfo?.startTime, sessionInfo?.currentDayIndex]);
 
   useEffect(() => {
     if (!quiz || !sessionInfo) { setShuffledQuiz(null); return; }
@@ -184,9 +213,8 @@ export default function DoAssignment() {
     setShuffledQuiz({ ...quiz, questions: processedQuestions });
   }, [quiz, sessionInfo, shuffledQuiz]);
 
-  // --- LOGIC ONE ATTEMPT & KHỞI TẠO PHIÊN (SESSION) ---
   useEffect(() => {
-    if (!shuffledQuiz || !sessionInfo || isInitialized) return;
+    if (!shuffledQuiz || !sessionInfo || isInitialized || view === 'WAITING_START') return;
 
     const initSession = async () => {
       const subRef = doc(db, `rooms/${roomId}/submissions`, studentId);
@@ -203,7 +231,7 @@ export default function DoAssignment() {
         existingTeam = data.team || null;
 
         if (!isSub) {
-          if (sessionInfo.settings?.oneAttempt || sessionInfo.mode === 'Space Race') {
+          if (sessionInfo.settings?.oneAttempt || sessionInfo.mode === 'Space Race' || sessionInfo.mode === 'Weekly') {
             prevRaw = data.rawAnswers || {};
             const locks = {};
             Object.keys(prevRaw).forEach(k => {
@@ -232,24 +260,42 @@ export default function DoAssignment() {
       }
 
       setLocalAnswers(prevRaw); 
-      setStudentTeam(existingTeam); // Khôi phục Team nếu đã chọn
+      setStudentTeam(existingTeam); 
       setIsSubmitted(isSub); 
       setIsInitialized(true);
     };
 
     initSession();
-  }, [shuffledQuiz, sessionInfo, isInitialized, roomId, studentId]);
+  }, [shuffledQuiz, sessionInfo, isInitialized, roomId, studentId, view]);
 
-  // --- LOGIC TIMER ---
+  // --- LOGIC TIMER (ÁP DỤNG CHO NORMAL VÀ WEEKLY) ---
   useEffect(() => {
-    if (!sessionInfo?.settings?.timeLimit || isSubmitted || view !== 'QUIZ' || !studentStartTime) {
+    let activeTimeLimit = null;
+    let endMsCutoff = Infinity;
+
+    if (sessionInfo?.mode === 'Weekly') {
+       const currentDay = sessionInfo.activeDays[sessionInfo.currentDayIndex];
+       if (currentDay) {
+           activeTimeLimit = currentDay.timer;
+           endMsCutoff = new Date(currentDay.endTime).getTime();
+       }
+    } else {
+       activeTimeLimit = sessionInfo?.settings?.timeLimit;
+    }
+
+    if (!studentStartTime || isSubmitted || view !== 'QUIZ') {
       setTimeLeft(null);
       return;
     }
 
-    const limitMs = sessionInfo.settings.timeLimit * 60000;
-    const startTimeMs = new Date(studentStartTime).getTime();
-    const deadlineMs = startTimeMs + limitMs;
+    const startMs = new Date(studentStartTime).getTime();
+    let deadlineMs = activeTimeLimit ? (startMs + activeTimeLimit * 60000) : endMsCutoff;
+    if (activeTimeLimit) deadlineMs = Math.min(deadlineMs, endMsCutoff);
+
+    if (deadlineMs === Infinity) {
+      setTimeLeft(null);
+      return;
+    }
 
     const interval = setInterval(() => {
       const now = Date.now();
@@ -408,9 +454,6 @@ export default function DoAssignment() {
     await submitQuizData();
   };
 
-  // ==========================================
-  // LOGIC VOCABULARY
-  // ==========================================
   const saveVocabReport = async (updateData) => {
     try {
       const ref = doc(db, `rooms/${roomId}/vocab_submissions`, studentId);
@@ -500,7 +543,7 @@ export default function DoAssignment() {
         {!isMobile && <h1 style={{ fontSize: '22px', margin: 0, fontWeight: '800', color: studentTeam || '#003366', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{titleText}</h1>}
       </div>
 
-      {view === 'QUIZ' && sessionInfo?.settings?.timeLimit && timeLeft !== null && !isSubmitted && (
+      {view === 'QUIZ' && timeLeft !== null && !isSubmitted && (
         <div style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
            <div style={{ backgroundColor: '#fef2f2', color: '#ef4444', padding: '6px 16px', borderRadius: '100px', fontWeight: '800', fontSize: isMobile ? '15px' : '18px', display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #fca5a5' }}>
               <SvgIcons.Timer /> {formatTimeLeft(timeLeft)}
@@ -551,7 +594,20 @@ export default function DoAssignment() {
     </div>
   );
 
-  // --- MÀN HÌNH CHỌN ĐỘI THI ĐUA (SPACE RACE) ---
+  // MÀN HÌNH CHỜ WEEKLY PENDING
+  if (view === 'WAITING_START') {
+    return (
+      <div style={{ backgroundColor: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        {verificationModal} {appHeader(roomId)}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px', textAlign: 'center' }}>
+          <div style={{ marginBottom: '24px', animation: 'pulse 2s infinite' }}><SvgIcons.Wait /></div>
+          <h2 style={{ fontWeight: '800', margin: '0 0 12px 0', fontSize: '22px', color: '#003366' }}>{waitingMsg}</h2>
+        </div>
+      </div>
+    );
+  }
+
+  // MÀN HÌNH CHỌN ĐỘI THI ĐUA (SPACE RACE)
   if (!showVerification && sessionInfo?.mode === 'Space Race' && !studentTeam && view === 'DASHBOARD') {
     const numTeams = sessionInfo.settings?.teamCount || 2;
     const teams = TEAM_COLORS.slice(0, numTeams);
@@ -562,7 +618,6 @@ export default function DoAssignment() {
         {appHeader('Space Race')}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
           <div style={{ backgroundColor: 'white', padding: '40px', borderRadius: '24px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.05)', maxWidth: '600px', width: '100%', textAlign: 'center' }}>
-            
             <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'center', filter: 'drop-shadow(0 10px 15px rgba(0,0,0,0.1))' }}>
               {raceIcon === 'Rocket' && <SvgIcons.RaceRocket />}
               {raceIcon === 'UFO' && <SvgIcons.RaceUFO />}
@@ -571,7 +626,6 @@ export default function DoAssignment() {
               {raceIcon === 'Dino' && <SvgIcons.RaceDino />}
               {raceIcon === 'Horse' && <SvgIcons.RaceHorse />}
             </div>
-
             <h2 style={{ color: '#003366', fontSize: '28px', fontWeight: '800', marginBottom: '10px' }}>Chọn đội của bạn!</h2>
             <p style={{ color: '#64748b', marginBottom: '40px', fontSize: '16px' }}>Hãy chọn màu đại diện cho đội của bạn để bắt đầu cuộc đua.</p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '16px' }}>
@@ -605,6 +659,13 @@ export default function DoAssignment() {
         </div>
       );
     }
+
+    let displayTitle = shuffledQuiz?.title || quiz?.title;
+    if (sessionInfo?.mode === 'Weekly') {
+        const d = sessionInfo.activeDays[sessionInfo.currentDayIndex];
+        if (d) displayTitle = `${d.day}: ${d.quizTitle}`;
+    }
+
     return (
       <div style={{ backgroundColor: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column', fontFamily: "'Josefin Sans', sans-serif" }}>
         {verificationModal} {appHeader(`Hello, ${studentId}`)}
@@ -624,7 +685,7 @@ export default function DoAssignment() {
               <button onClick={() => setView('QUIZ')} style={{ flex: 1, backgroundColor: 'white', border: '2px solid #e67e22', borderRadius: '20px', padding: '40px 20px', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 10px 15px -3px rgba(230,126,34,0.1)' }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'} onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
                 <div style={{ color: '#e67e22', marginBottom: '20px', display: 'flex', justifyContent: 'center' }}><SvgIcons.Quiz /></div>
                 <h3 style={{ margin: 0, color: '#003366', fontSize: '22px', fontWeight: '800' }}>Làm bài kiểm tra</h3>
-                <p style={{ color: '#64748b', fontSize: '14px', marginTop: '10px' }}>{shuffledQuiz?.title || quiz.title}</p>
+                <p style={{ color: '#64748b', fontSize: '14px', marginTop: '10px' }}>{displayTitle}</p>
               </button>
             )}
 
@@ -753,22 +814,28 @@ export default function DoAssignment() {
       <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', color: '#003366', padding: '20px', fontFamily: "'Josefin Sans', sans-serif" }}>
         <div style={{ marginBottom: '24px' }}><SvgIcons.CheckBig /></div>
         <h2 style={{ fontWeight: '800', margin: '0 0 12px 0', fontSize: '22px' }}>Đã nộp bài thành công!</h2>
-        <p style={{ color: '#64748b', textAlign: 'center', maxWidth: '400px', lineHeight: '1.6' }}>Kết quả của bạn đã được gửi đến giáo viên.</p>
+        <p style={{ color: '#64748b', textAlign: 'center', maxWidth: '400px', lineHeight: '1.6' }}>Kết quả của bạn đã được ghi nhận.</p>
         <button onClick={() => setView('DASHBOARD')} style={{ marginTop: '30px', padding: '12px 24px', borderRadius: '100px', backgroundColor: 'white', border: '1px solid #cbd5e1', fontWeight: '700', cursor: 'pointer', color: '#003366', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}>Quay lại Trang chủ</button>
       </div>
     );
   }
 
   const isTeacherPaced = sessionInfo?.mode === 'Teacher Paced';
-  const isInstantFeedback = sessionInfo?.mode === 'Instant Feedback' || sessionInfo?.mode === 'Space Race';
+  const isInstantFeedback = sessionInfo?.mode === 'Instant Feedback' || sessionInfo?.mode === 'Space Race' || sessionInfo?.mode === 'Weekly';
   const requiresLocking = isInstantFeedback || isTeacherPaced;
   const currentQuestionIndex = sessionInfo?.currentQuestionIndex || 0;
   const showFeedback = sessionInfo?.settings?.showFeedback;
   let globalQuestionIndex = 1;
 
+  let displayTitle = shuffledQuiz?.title || 'Quiz Assignment';
+  if (sessionInfo?.mode === 'Weekly' && sessionInfo.activeDays) {
+     const d = sessionInfo.activeDays[sessionInfo.currentDayIndex];
+     if (d) displayTitle = `${d.day}: ${d.quizTitle}`;
+  }
+
   const sections = shuffledQuiz.sections && shuffledQuiz.sections.length > 0 
     ? shuffledQuiz.sections 
-    : [{ id: 'default', type: shuffledQuiz.quizMode === 'PASSAGE' ? 'PASSAGE' : 'SINGLE', title: shuffledQuiz.passageTitle || 'Quiz Assignment', passageContent: shuffledQuiz.passage }];
+    : [{ id: 'default', type: shuffledQuiz.quizMode === 'PASSAGE' ? 'PASSAGE' : 'SINGLE', title: displayTitle, passageContent: shuffledQuiz.passage }];
 
   const renderTextWithGapsQuiz = (q) => {
     if (!q.text) return null;
@@ -818,7 +885,7 @@ export default function DoAssignment() {
 
   return (
     <div style={{ backgroundColor: '#f8fafc', minHeight: '100vh', paddingBottom: '80px', fontFamily: "'Josefin Sans', sans-serif" }}>
-      {appHeader(shuffledQuiz.title, true, () => setView('DASHBOARD'))}
+      {appHeader(displayTitle, true, () => setView('DASHBOARD'))}
 
       <div style={{ maxWidth: '840px', margin: '0 auto', padding: isMobile ? '20px 15px' : '40px 20px' }}>
         
@@ -882,7 +949,7 @@ export default function DoAssignment() {
 
                       {q.text && q.type !== 'GAP_FILL_PARAGRAPH' && <div style={{ fontSize: '16px', color: '#003366', fontWeight: '700', marginBottom: '24px', lineHeight: '1.6' }} dangerouslySetInnerHTML={{ __html: q.text }} />}
 
-                      {/* XỬ LÝ CÁC DẠNG CÂU HỎI */}
+                      {/* MCQ */}
                       {q.type === 'MCQ' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                           {(q.displayOptions || []).map((optObj, i) => {
@@ -918,6 +985,7 @@ export default function DoAssignment() {
                         </div>
                       )}
 
+                      {/* EVALUATION */}
                       {q.type === 'EVALUATION' && (
                         <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '12px' }}>
                           {(q.evalType === 'YNNG' ? ['Yes', 'No', 'Not Given'] : ['True', 'False', 'Not Given']).map(opt => {
@@ -945,6 +1013,7 @@ export default function DoAssignment() {
                         </div>
                       )}
 
+                      {/* MATCHING & SAQ */}
                       {['MATCHING', 'SAQ'].includes(q.type) && (
                         <input 
                           type="text" placeholder="Nhập câu trả lời của bạn..." value={localAnswers[q.id] || ''} 
@@ -953,6 +1022,7 @@ export default function DoAssignment() {
                         />
                       )}
 
+                      {/* GAP FILL DIAGRAM */}
                       {q.type === 'GAP_FILL_DIAGRAM' && (
                         <div style={{ marginBottom: '15px' }}>
                           {q.imageUrl && (
@@ -988,6 +1058,7 @@ export default function DoAssignment() {
                         </div>
                       )}
 
+                      {/* GAP FILL PARAGRAPH */}
                       {q.type === 'GAP_FILL_PARAGRAPH' && (
                         <div style={{ padding: isMobile ? '16px' : '24px', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', overflowX: 'auto' }}>
                           {renderTextWithGapsQuiz(q)}
@@ -1000,8 +1071,6 @@ export default function DoAssignment() {
                           <button 
                             onClick={() => handleLockQuestion(q.id)} 
                             style={{ display: 'flex', alignItems: 'center', gap: '8px', backgroundColor: '#0ea5e9', color: 'white', fontWeight: '700', padding: '10px 20px', borderRadius: '100px', cursor: 'pointer', border: 'none', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(14,165,233,0.2)' }}
-                            onMouseEnter={e => e.currentTarget.style.backgroundColor = '#0284c7'}
-                            onMouseLeave={e => e.currentTarget.style.backgroundColor = '#0ea5e9'}
                           >
                             <SvgIcons.Lock /> Chốt đáp án
                           </button>
