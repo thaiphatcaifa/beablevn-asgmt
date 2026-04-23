@@ -5,14 +5,21 @@ import { collection, onSnapshot, doc, updateDoc, addDoc, getDocs, deleteDoc, get
 import { db } from '../../firebase';
 import { TeacherContext } from './TeacherDashboard';
 
-// --- HỆ THỐNG SVG ICONS TỐI GIẢN ---
+// --- HỆ THỐNG SVG ICONS TỐI GIẢN & EMOJI SỐNG ĐỘNG ---
 const SvgIcons = {
   Pause: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>,
   Play: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>,
   Stop: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect></svg>,
   Users: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>,
   ChevronLeft: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"></polyline></svg>,
-  ChevronRight: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>
+  ChevronRight: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"></polyline></svg>,
+  // Emoji Icons cho Thi đua
+  RaceRocket: () => <span style={{ fontSize: '36px', display: 'inline-block', lineHeight: 1 }}>🚀</span>,
+  RaceUFO: () => <span style={{ fontSize: '36px', display: 'inline-block', lineHeight: 1 }}>🛸</span>,
+  RaceCar: () => <span style={{ fontSize: '36px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🏎️</span>,
+  RaceBug: () => <span style={{ fontSize: '36px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🐛</span>,
+  RaceDino: () => <span style={{ fontSize: '36px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🦖</span>,
+  RaceHorse: () => <span style={{ fontSize: '36px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🐎</span>,
 };
 
 const Toggle = ({ label, checked, onChange }) => (
@@ -29,6 +36,15 @@ const formatTime = (isoString) => {
   const d = new Date(isoString);
   return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 };
+
+// Màu sắc các đội thi đua
+const TEAM_COLORS = [
+  { name: 'Xanh dương', hex: '#3b82f6' }, { name: 'Hồng', hex: '#ec4899' },
+  { name: 'Xanh lá', hex: '#10b981' }, { name: 'Vàng', hex: '#eab308' },
+  { name: 'Cam', hex: '#f97316' }, { name: 'Tím', hex: '#a855f7' },
+  { name: 'Đỏ', hex: '#ef4444' }, { name: 'Xám', hex: '#64748b' },
+  { name: 'Nâu', hex: '#78350f' }, { name: 'Đen', hex: '#1e293b' }
+];
 
 export default function LiveResults() {
   const navigate = useNavigate();
@@ -138,7 +154,7 @@ export default function LiveResults() {
         });
 
         const score = Math.round((correctCount / quizData.questions.length) * 100) || 0;
-        return { ...student, answers: evaluatedAnswers, score, submitted: !!sub?.submittedAt, sessions: sub?.sessions || [] };
+        return { ...student, answers: evaluatedAnswers, score, submitted: !!sub?.submittedAt, sessions: sub?.sessions || [], team: sub?.team || null };
       });
 
       const reportData = {
@@ -183,7 +199,52 @@ export default function LiveResults() {
   if (!quizData) return <div style={{ padding: '60px', textAlign: 'center', color: '#64748b', fontSize: '15px' }}>Đang tải dữ liệu bài kiểm tra...</div>;
 
   const isTeacherPaced = sessionInfo.mode === 'Teacher Paced';
+  const isSpaceRace = sessionInfo.mode === 'Space Race';
   const isOneAttempt = sessionInfo.settings?.oneAttempt;
+
+  // --- LOGIC TÍNH ĐIỂM CHO SPACE RACE ---
+  const getRaceProgress = () => {
+    if (!isSpaceRace) return [];
+    const numTeams = sessionInfo.settings?.teamCount || 2;
+    const teams = TEAM_COLORS.slice(0, numTeams);
+    const totalQ = quizData.questions.length;
+    
+    return teams.map(team => {
+      const teamSubs = submissions.filter(s => s.team === team.hex);
+      if (teamSubs.length === 0) return { ...team, progress: 0 };
+      
+      const maxPossibleCorrect = teamSubs.length * totalQ;
+      let totalCorrect = 0;
+      teamSubs.forEach(sub => {
+         quizData.questions.forEach(q => {
+            if (evaluateAnswer(q, sub.answers?.[q.id])) totalCorrect++;
+         });
+      });
+      
+      const progress = Math.min(100, Math.round((totalCorrect / maxPossibleCorrect) * 100)) || 0;
+      return { ...team, progress };
+    });
+  };
+
+  // --- COMPONENT HIỂN THỊ EMOJI PHÁT SÁNG THEO ĐỘI ---
+  const RenderRaceIcon = ({ iconType, color }) => {
+    return (
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {/* Vòng sáng Glowing background */}
+        <div style={{ position: 'absolute', width: '40px', height: '40px', borderRadius: '50%', backgroundColor: color, filter: 'blur(12px)', opacity: 0.6, zIndex: 0 }}></div>
+        {/* Emoji chính */}
+        <div style={{ position: 'relative', zIndex: 1, filter: `drop-shadow(0 2px 4px rgba(0,0,0,0.3))` }}>
+          {iconType === 'Rocket' && <SvgIcons.RaceRocket />}
+          {iconType === 'UFO' && <SvgIcons.RaceUFO />}
+          {iconType === 'Car' && <SvgIcons.RaceCar />}
+          {iconType === 'Bug' && <SvgIcons.RaceBug />}
+          {iconType === 'Dino' && <SvgIcons.RaceDino />}
+          {iconType === 'Horse' && <SvgIcons.RaceHorse />}
+          {!['Rocket', 'UFO', 'Car', 'Bug', 'Dino', 'Horse'].includes(iconType) && <SvgIcons.RaceRocket />}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div style={{ padding: isMobile ? '15px' : '30px', minHeight: '100vh', backgroundColor: '#f8fafc', fontFamily: "'Josefin Sans', sans-serif" }}>
@@ -221,107 +282,129 @@ export default function LiveResults() {
         </div>
       )}
 
-      {/* TOGGLES */}
-      <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '24px', padding: '0 5px' }}>
-        <Toggle label="Show Names" checked={showNames} onChange={setShowNames} />
-        <Toggle label="Show Responses" checked={showResponses} onChange={setShowResponses} />
-        <Toggle label="Show Results" checked={showResults} onChange={setShowResults} />
-      </div>
+      {/* --- GIAO DIỆN SPACE RACE (THI ĐUA) --- */}
+      {isSpaceRace ? (
+        <div style={{ backgroundColor: 'white', borderRadius: '24px', padding: isMobile ? '20px' : '40px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0' }}>
+          <h3 style={{ textAlign: 'center', color: '#003366', fontSize: '24px', fontWeight: '800', margin: '0 0 40px 0', textTransform: 'uppercase', letterSpacing: '2px' }}>Đường Đua Không Gian</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+            {getRaceProgress().map((team, idx) => (
+              <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                <div style={{ width: '80px', fontWeight: '800', color: team.hex, fontSize: '14px', textTransform: 'uppercase' }}>ĐỘI {team.name}</div>
+                <div style={{ flex: 1, position: 'relative', height: '50px', borderBottom: '3px dashed #cbd5e1', display: 'flex', alignItems: 'flex-end', paddingBottom: '10px' }}>
+                  <div style={{ position: 'absolute', left: `${team.progress}%`, bottom: '-15px', transform: 'translateX(-50%)', transition: 'left 0.8s ease-in-out' }}>
+                    <RenderRaceIcon iconType={sessionInfo.settings?.raceIcon} color={team.hex} />
+                  </div>
+                </div>
+                <div style={{ width: '40px', fontWeight: '800', color: '#64748b', textAlign: 'right' }}>{team.progress}%</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* TOGGLES */}
+          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', marginBottom: '24px', padding: '0 5px' }}>
+            <Toggle label="Show Names" checked={showNames} onChange={setShowNames} />
+            <Toggle label="Show Responses" checked={showResponses} onChange={setShowResponses} />
+            <Toggle label="Show Results" checked={showResults} onChange={setShowResults} />
+          </div>
 
-      {/* LIVE MATRIX MATRIX */}
-      <div style={{ width: '100%', overflowX: 'auto', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-        <table style={{ minWidth: isMobile ? '600px' : '100%', borderCollapse: 'collapse', textAlign: 'center' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #cbd5e1' }}>
-              <th style={{ padding: '16px 20px', textAlign: 'left', color: '#475569', width: '240px', position: 'sticky', left: 0, backgroundColor: '#f8fafc', zIndex: 10 }}>Name</th>
-              <th style={{ padding: '16px', color: '#475569', width: '100px' }}>Score</th>
-              {quizData.questions.map((q, idx) => (
-                <th key={q.id} style={{ padding: '16px', color: (isTeacherPaced && currentQIndex === idx) ? '#0ea5e9' : '#003366', fontWeight: '800', borderBottom: (isTeacherPaced && currentQIndex === idx) ? '3px solid #0ea5e9' : 'none' }}>
-                  Q{idx + 1}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {roster.length === 0 ? (
-              <tr><td colSpan={quizData.questions.length + 2} style={{ padding: '40px', color: '#94a3b8' }}>Chưa có học viên nào trong danh sách lớp.</td></tr>
-            ) : (
-              roster.map((student, index) => {
-                const sub = submissions.find(s => s.id === student.studentId || s.studentId === student.studentId);
-                const isFinished = sub && sub.submittedAt;
+          {/* LIVE MATRIX CHO CÁC CHẾ ĐỘ THƯỜNG */}
+          <div style={{ width: '100%', overflowX: 'auto', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+            <table style={{ minWidth: isMobile ? '600px' : '100%', borderCollapse: 'collapse', textAlign: 'center' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #cbd5e1' }}>
+                  <th style={{ padding: '16px 20px', textAlign: 'left', color: '#475569', width: '240px', position: 'sticky', left: 0, backgroundColor: '#f8fafc', zIndex: 10 }}>Name</th>
+                  <th style={{ padding: '16px', color: '#475569', width: '100px' }}>Score</th>
+                  {quizData.questions.map((q, idx) => (
+                    <th key={q.id} style={{ padding: '16px', color: (isTeacherPaced && currentQIndex === idx) ? '#0ea5e9' : '#003366', fontWeight: '800', borderBottom: (isTeacherPaced && currentQIndex === idx) ? '3px solid #0ea5e9' : 'none' }}>
+                      Q{idx + 1}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {roster.length === 0 ? (
+                  <tr><td colSpan={quizData.questions.length + 2} style={{ padding: '40px', color: '#94a3b8' }}>Chưa có học viên nào trong danh sách lớp.</td></tr>
+                ) : (
+                  roster.map((student, index) => {
+                    const sub = submissions.find(s => s.id === student.studentId || s.studentId === student.studentId);
+                    const isFinished = sub && sub.submittedAt;
 
-                let correctCount = 0;
-                if (sub) {
-                  quizData.questions.forEach(q => {
-                    if (evaluateAnswer(q, sub.answers?.[q.id])) correctCount++;
-                  });
-                }
-                const score = sub ? Math.round((correctCount / quizData.questions.length) * 100) : 0;
+                    let correctCount = 0;
+                    if (sub) {
+                      quizData.questions.forEach(q => {
+                        if (evaluateAnswer(q, sub.answers?.[q.id])) correctCount++;
+                      });
+                    }
+                    const score = sub ? Math.round((correctCount / quizData.questions.length) * 100) : 0;
 
-                return (
-                  <tr key={index} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0f9ff'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}>
-                    <td style={{ padding: '16px 20px', textAlign: 'left', position: 'sticky', left: 0, backgroundColor: 'inherit', zIndex: 5, borderRight: '1px solid #f1f5f9', verticalAlign: 'top' }}>
-                      <div style={{ fontWeight: '700', color: '#003366', marginBottom: '8px' }}>
-                        {showNames ? `${student.lastName} ${student.firstName}` : '••••••••'}
-                      </div>
-                      
-                      {/* LỊCH SỬ ĐĂNG NHẬP / SESSION HISTORY */}
-                      {sub?.sessions && sub.sessions.length > 0 && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px' }}>
-                          {sub.sessions.map((sess, i) => (
-                            <div key={i} style={{ fontSize: '12px', color: '#64748b', padding: '8px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                              <div style={{ fontWeight: '700', color: '#334155', marginBottom: '4px' }}>Đợt {i+1}</div>
-                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
-                                <div><span style={{ color: '#94a3b8' }}>Vào:</span> {formatTime(sess.loginTime)}</div>
-                                <div><span style={{ color: '#94a3b8' }}>Ra:</span> {sess.exitTime ? formatTime(sess.exitTime) : '--:--'}</div>
-                              </div>
-                              <div style={{ color: '#0ea5e9', fontWeight: '800', marginTop: '6px', borderTop: '1px dashed #cbd5e1', paddingTop: '4px' }}>
-                                {isOneAttempt 
-                                  ? `Đã làm: ${sess.completedCount} câu` 
-                                  : `Điểm: ${sess.score}%`}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                    
-                    <td style={{ padding: '16px', fontWeight: '800', color: sub ? (isFinished ? '#059669' : '#e67e22') : '#94a3b8', verticalAlign: 'top' }}>
-                      {sub ? `${score}%` : '-'}
-                      {sub && !isFinished && !isTeacherPaced && <div style={{ fontSize: '11px', color: '#e67e22', fontWeight: '600', marginTop: '4px' }}>Đang làm...</div>}
-                    </td>
-                    
-                    {quizData.questions.map((q, idx) => {
-                      const ans = sub?.answers ? sub.answers[q.id] : null;
-                      const isCorrect = evaluateAnswer(q, ans);
-                      
-                      let cellBg = 'transparent';
-                      let cellColor = '#334155';
-                      let cellText = '';
-
-                      if (ans) {
-                        cellText = showResponses ? ans : '✓';
-                        if (showResults) {
-                          cellBg = isCorrect ? '#dcfce7' : '#fee2e2'; 
-                          cellColor = isCorrect ? '#15803d' : '#b91c1c';
-                        }
-                      }
-
-                      return (
-                        <td key={idx} style={{ padding: '10px', backgroundColor: (isTeacherPaced && currentQIndex === idx) ? '#f0f9ff' : 'transparent', verticalAlign: 'top' }}>
-                          <div style={{ backgroundColor: cellBg, color: cellColor, padding: '8px', borderRadius: '8px', fontWeight: '600', minHeight: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: (ans && !showResults) ? '1px solid #cbd5e1' : 'none', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px', margin: '0 auto' }} title={ans}>
-                            {cellText}
+                    return (
+                      <tr key={index} style={{ borderBottom: '1px solid #f1f5f9', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0f9ff'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}>
+                        <td style={{ padding: '16px 20px', textAlign: 'left', position: 'sticky', left: 0, backgroundColor: 'inherit', zIndex: 5, borderRight: '1px solid #f1f5f9', verticalAlign: 'top' }}>
+                          <div style={{ fontWeight: '700', color: '#003366', marginBottom: '8px' }}>
+                            {showNames ? `${student.lastName} ${student.firstName}` : '••••••••'}
                           </div>
+                          
+                          {/* LỊCH SỬ ĐĂNG NHẬP / SESSION HISTORY */}
+                          {sub?.sessions && sub.sessions.length > 0 && (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '10px' }}>
+                              {sub.sessions.map((sess, i) => (
+                                <div key={i} style={{ fontSize: '12px', color: '#64748b', padding: '8px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                  <div style={{ fontWeight: '700', color: '#334155', marginBottom: '4px' }}>Đợt {i+1}</div>
+                                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px' }}>
+                                    <div><span style={{ color: '#94a3b8' }}>Vào:</span> {formatTime(sess.loginTime)}</div>
+                                    <div><span style={{ color: '#94a3b8' }}>Ra:</span> {sess.exitTime ? formatTime(sess.exitTime) : '--:--'}</div>
+                                  </div>
+                                  <div style={{ color: '#0ea5e9', fontWeight: '800', marginTop: '6px', borderTop: '1px dashed #cbd5e1', paddingTop: '4px' }}>
+                                    {isOneAttempt 
+                                      ? `Đã làm: ${sess.completedCount} câu` 
+                                      : `Điểm: ${sess.score}%`}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                        
+                        <td style={{ padding: '16px', fontWeight: '800', color: sub ? (isFinished ? '#059669' : '#e67e22') : '#94a3b8', verticalAlign: 'top' }}>
+                          {sub ? `${score}%` : '-'}
+                          {sub && !isFinished && !isTeacherPaced && <div style={{ fontSize: '11px', color: '#e67e22', fontWeight: '600', marginTop: '4px' }}>Đang làm...</div>}
+                        </td>
+                        
+                        {quizData.questions.map((q, idx) => {
+                          const ans = sub?.answers ? sub.answers[q.id] : null;
+                          const isCorrect = evaluateAnswer(q, ans);
+                          
+                          let cellBg = 'transparent';
+                          let cellColor = '#334155';
+                          let cellText = '';
+
+                          if (ans) {
+                            cellText = showResponses ? ans : '✓';
+                            if (showResults) {
+                              cellBg = isCorrect ? '#dcfce7' : '#fee2e2'; 
+                              cellColor = isCorrect ? '#15803d' : '#b91c1c';
+                            }
+                          }
+
+                          return (
+                            <td key={idx} style={{ padding: '10px', backgroundColor: (isTeacherPaced && currentQIndex === idx) ? '#f0f9ff' : 'transparent', verticalAlign: 'top' }}>
+                              <div style={{ backgroundColor: cellBg, color: cellColor, padding: '8px', borderRadius: '8px', fontWeight: '600', minHeight: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: (ans && !showResults) ? '1px solid #cbd5e1' : 'none', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px', margin: '0 auto' }} title={ans}>
+                                {cellText}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
     </div>
   );
 }

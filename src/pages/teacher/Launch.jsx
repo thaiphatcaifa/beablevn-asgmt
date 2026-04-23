@@ -5,7 +5,7 @@ import { collection, getDocs, doc, updateDoc, getDoc, deleteDoc } from 'firebase
 import { db } from '../../firebase';
 import { TeacherContext } from './TeacherDashboard';
 
-// --- HỆ THỐNG SVG ICONS TỐI GIẢN (Nét mảnh, màu #003366) ---
+// --- HỆ THỐNG SVG ICONS TỐI GIẢN & EMOJI SỐNG ĐỘNG ---
 const SvgIcons = {
   Quiz: () => <svg width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>,
   Race: () => <svg width="32" height="32" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg>,
@@ -15,10 +15,16 @@ const SvgIcons = {
   Instant: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg>,
   Open: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>,
   Teacher: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>,
-  Rocket: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M13.5 22H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v6.5"></path><path d="M22 17.5L18 22l-4.5-4.5"></path><line x1="18" y1="22" x2="18" y2="12"></line></svg>
+  Rocket: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M13.5 22H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v6.5"></path><path d="M22 17.5L18 22l-4.5-4.5"></path><line x1="18" y1="22" x2="18" y2="12"></line></svg>,
+  // Emoji Icons cho Thi đua
+  RaceRocket: () => <span style={{ fontSize: '24px', display: 'inline-block', lineHeight: 1 }}>🚀</span>,
+  RaceUFO: () => <span style={{ fontSize: '24px', display: 'inline-block', lineHeight: 1 }}>🛸</span>,
+  RaceCar: () => <span style={{ fontSize: '24px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🏎️</span>,
+  RaceBug: () => <span style={{ fontSize: '24px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🐛</span>,
+  RaceDino: () => <span style={{ fontSize: '24px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🦖</span>,
+  RaceHorse: () => <span style={{ fontSize: '24px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🐎</span>,
 };
 
-// --- COMPONENT: CÔNG TẮC (TOGGLE SWITCH) ---
 const Toggle = ({ label, checked, onChange, disabled, info }) => (
   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 0', borderBottom: '1px solid #f1f5f9' }}>
     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: disabled ? '#94a3b8' : '#334155', fontSize: '15px', fontWeight: '500' }}>
@@ -43,7 +49,6 @@ const Toggle = ({ label, checked, onChange, disabled, info }) => (
   </div>
 );
 
-// --- COMPONENT: THẺ CHỌN PHƯƠNG THỨC LÀM BÀI ---
 const MethodCard = ({ title, icon, description, active, onClick }) => (
   <div onClick={onClick} style={{
     border: active ? '2px solid #003366' : '1px solid #cbd5e1',
@@ -65,7 +70,6 @@ const MethodCard = ({ title, icon, description, active, onClick }) => (
   </div>
 );
 
-// --- TRANG CHÍNH: LAUNCH ---
 export default function Launch() {
   const navigate = useNavigate();
   const { activeRoom } = useContext(TeacherContext);
@@ -74,8 +78,8 @@ export default function Launch() {
   const [quizzes, setQuizzes] = useState([]);
   const [step, setStep] = useState('MENU');
   const [selectedQuizId, setSelectedQuizId] = useState('');
+  const [isSpaceRace, setIsSpaceRace] = useState(false);
 
-  // --- CÁC STATE CẤU HÌNH BÀI THI ---
   const [deliveryMethod, setDeliveryMethod] = useState('Instant Feedback');
   const [shuffleQuestions, setShuffleQuestions] = useState(false);
   const [shuffleAnswers, setShuffleAnswers] = useState(false);
@@ -83,9 +87,11 @@ export default function Launch() {
   const [showFinalScore, setShowFinalScore] = useState(false);
   const [oneAttempt, setOneAttempt] = useState(true);
   
-  // Timer State
   const [hasTimer, setHasTimer] = useState(false);
   const [timeLimit, setTimeLimit] = useState('');
+
+  const [teamCount, setTeamCount] = useState(2);
+  const [raceIcon, setRaceIcon] = useState('Rocket');
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -101,7 +107,6 @@ export default function Launch() {
     fetchQuizzes();
   }, []);
 
-  // Xử lý tự động vô hiệu hóa Timer nếu không thỏa điều kiện
   useEffect(() => {
     if (deliveryMethod !== 'Instant Feedback' || !oneAttempt) {
       setHasTimer(false);
@@ -125,7 +130,6 @@ export default function Launch() {
         if(!window.confirm(`Lớp ${activeRoom} đang có một hoạt động diễn ra. Bạn có chắc muốn dừng bài cũ và chạy bài mới này không?`)) return;
       }
 
-      // Xóa sạch toàn bộ lịch sử (submissions) của bài cũ
       const subDocs = await getDocs(collection(db, `rooms/${activeRoom}/submissions`));
       for (const subDoc of subDocs.docs) {
         await deleteDoc(doc(db, `rooms/${activeRoom}/submissions`, subDoc.id));
@@ -133,13 +137,16 @@ export default function Launch() {
 
       const quizData = quizzes.find(q => q.id === selectedQuizId);
 
-      // Cập nhật session lên Firebase
       await updateDoc(doc(db, "rooms", activeRoom), {
         activeSession: {
           quizId: selectedQuizId,
           quizTitle: quizData.title,
-          mode: deliveryMethod,
-          settings: { 
+          mode: isSpaceRace ? 'Space Race' : deliveryMethod,
+          settings: isSpaceRace ? {
+            teamCount: parseInt(teamCount),
+            raceIcon: raceIcon,
+            shuffleQuestions, shuffleAnswers, showFeedback
+          } : { 
             shuffleQuestions, 
             shuffleAnswers, 
             showFeedback, 
@@ -147,7 +154,7 @@ export default function Launch() {
             oneAttempt,
             timeLimit: hasTimer && timeLimit ? parseInt(timeLimit) : null
           },
-          currentQuestionIndex: deliveryMethod === 'Teacher Paced' ? 0 : null,
+          currentQuestionIndex: (!isSpaceRace && deliveryMethod === 'Teacher Paced') ? 0 : null,
           status: 'active',
           startTime: new Date().toISOString()
         }
@@ -168,7 +175,7 @@ export default function Launch() {
       
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '20px' }}>
         <button 
-          onClick={() => setStep('SELECT_QUIZ')} 
+          onClick={() => { setIsSpaceRace(false); setStep('SELECT_QUIZ'); }} 
           style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', cursor: 'pointer', transition: 'all 0.2s ease', color: '#003366', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', width: '100%' }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = '#003366'; e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0,51,102,0.1)'; }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.05)'; }}
@@ -178,6 +185,7 @@ export default function Launch() {
         </button>
 
         <button 
+          onClick={() => { setIsSpaceRace(true); setStep('SELECT_QUIZ'); }} 
           style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', cursor: 'pointer', transition: 'all 0.2s ease', color: '#003366', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', width: '100%' }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = '#003366'; e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = '0 10px 15px -3px rgba(0,51,102,0.1)'; }}
           onMouseLeave={e => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0,0,0,0.05)'; }}
@@ -243,64 +251,109 @@ export default function Launch() {
 
               <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? '25px' : '40px', padding: isMobile ? '20px' : '30px' }}>
                 
-                <div>
-                  <h3 style={{ fontSize: '14px', color: '#64748b', marginTop: 0, marginBottom: '15px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>Delivery Method</h3>
-                  
-                  <MethodCard 
-                    title="Instant Feedback" 
-                    icon={<SvgIcons.Instant />} 
-                    active={deliveryMethod === 'Instant Feedback'} 
-                    onClick={() => { setDeliveryMethod('Instant Feedback'); setShuffleQuestions(false); setShuffleAnswers(false); setOneAttempt(true); }}
-                    description="Học viên làm câu hỏi theo thứ tự và không thể đổi đáp án. Nhận phản hồi ngay."
-                  />
-                  <MethodCard 
-                    title="Open Navigation" 
-                    icon={<SvgIcons.Open />} 
-                    active={deliveryMethod === 'Open Navigation'} 
-                    onClick={() => { setDeliveryMethod('Open Navigation'); setShowFeedback(false); setOneAttempt(false); }}
-                    description="Học viên tự do chuyển giữa các câu hỏi và thay đổi đáp án trước khi nộp bài."
-                  />
-                  <MethodCard 
-                    title="Teacher Paced" 
-                    icon={<SvgIcons.Teacher />} 
-                    active={deliveryMethod === 'Teacher Paced'} 
-                    onClick={() => { setDeliveryMethod('Teacher Paced'); setShuffleQuestions(false); }}
-                    description="Giáo viên điều khiển tiến trình làm bài, hiển thị từng câu hỏi một cho cả lớp."
-                  />
-                </div>
-
-                <div>
-                  <h3 style={{ fontSize: '14px', color: '#64748b', marginTop: 0, marginBottom: '15px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>Settings</h3>
-                  
-                  <Toggle label="Require Names" checked={true} disabled={true} />
-                  <Toggle label="Shuffle Questions" checked={shuffleQuestions} onChange={setShuffleQuestions} disabled={deliveryMethod === 'Teacher Paced'} info="Vô hiệu hóa khi ở chế độ Teacher Paced" />
-                  <Toggle label="Shuffle Answers" checked={shuffleAnswers} onChange={setShuffleAnswers} />
-                  <Toggle label="Show Question Feedback" checked={showFeedback} onChange={setShowFeedback} disabled={deliveryMethod === 'Open Navigation'} />
-                  <Toggle label="Show Final Score" checked={showFinalScore} onChange={setShowFinalScore} />
-                  <Toggle label="One Attempt" checked={oneAttempt} onChange={setOneAttempt} info="Học viên chỉ được gửi bài 1 lần duy nhất." />
-                  
-                  {/* Nâng cấp TIMER */}
-                  <Toggle 
-                    label="Timer (Đếm ngược)" 
-                    checked={hasTimer} 
-                    onChange={setHasTimer} 
-                    disabled={deliveryMethod !== 'Instant Feedback' || !oneAttempt} 
-                    info="Chỉ bật được khi dùng Instant Feedback và One Attempt." 
-                  />
-                  {hasTimer && (
-                    <div style={{ padding: '10px 16px', backgroundColor: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
-                      <input 
-                        type="number" 
-                        placeholder="Nhập số phút (VD: 15)..." 
-                        value={timeLimit} 
-                        onChange={e => setTimeLimit(e.target.value)} 
-                        min="1" 
-                        style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', color: '#003366', fontWeight: '600', boxSizing: 'border-box' }} 
+                {!isSpaceRace ? (
+                  <>
+                    <div>
+                      <h3 style={{ fontSize: '14px', color: '#64748b', marginTop: 0, marginBottom: '15px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>Delivery Method</h3>
+                      
+                      <MethodCard 
+                        title="Instant Feedback" 
+                        icon={<SvgIcons.Instant />} 
+                        active={deliveryMethod === 'Instant Feedback'} 
+                        onClick={() => { setDeliveryMethod('Instant Feedback'); setShuffleQuestions(false); setShuffleAnswers(false); setOneAttempt(true); }}
+                        description="Học viên làm câu hỏi theo thứ tự và không thể đổi đáp án. Nhận phản hồi ngay."
+                      />
+                      <MethodCard 
+                        title="Open Navigation" 
+                        icon={<SvgIcons.Open />} 
+                        active={deliveryMethod === 'Open Navigation'} 
+                        onClick={() => { setDeliveryMethod('Open Navigation'); setShowFeedback(false); setOneAttempt(false); }}
+                        description="Học viên tự do chuyển giữa các câu hỏi và thay đổi đáp án trước khi nộp bài."
+                      />
+                      <MethodCard 
+                        title="Teacher Paced" 
+                        icon={<SvgIcons.Teacher />} 
+                        active={deliveryMethod === 'Teacher Paced'} 
+                        onClick={() => { setDeliveryMethod('Teacher Paced'); setShuffleQuestions(false); }}
+                        description="Giáo viên điều khiển tiến trình làm bài, hiển thị từng câu hỏi một cho cả lớp."
                       />
                     </div>
-                  )}
 
-                </div>
+                    <div>
+                      <h3 style={{ fontSize: '14px', color: '#64748b', marginTop: 0, marginBottom: '15px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>Settings</h3>
+                      
+                      <Toggle label="Require Names" checked={true} disabled={true} />
+                      <Toggle label="Shuffle Questions" checked={shuffleQuestions} onChange={setShuffleQuestions} disabled={deliveryMethod === 'Teacher Paced'} info="Vô hiệu hóa khi ở chế độ Teacher Paced" />
+                      <Toggle label="Shuffle Answers" checked={shuffleAnswers} onChange={setShuffleAnswers} />
+                      <Toggle label="Show Question Feedback" checked={showFeedback} onChange={setShowFeedback} disabled={deliveryMethod === 'Open Navigation'} />
+                      <Toggle label="Show Final Score" checked={showFinalScore} onChange={setShowFinalScore} />
+                      <Toggle label="One Attempt" checked={oneAttempt} onChange={setOneAttempt} info="Học viên chỉ được gửi bài 1 lần duy nhất." />
+                      
+                      <Toggle 
+                        label="Timer (Đếm ngược)" 
+                        checked={hasTimer} 
+                        onChange={setHasTimer} 
+                        disabled={deliveryMethod !== 'Instant Feedback' || !oneAttempt} 
+                        info="Chỉ bật được khi dùng Instant Feedback và One Attempt." 
+                      />
+                      {hasTimer && (
+                        <div style={{ padding: '10px 16px', backgroundColor: '#f8fafc', borderBottom: '1px solid #f1f5f9' }}>
+                          <input 
+                            type="number" 
+                            placeholder="Nhập số phút (VD: 15)..." 
+                            value={timeLimit} 
+                            onChange={e => setTimeLimit(e.target.value)} 
+                            min="1" 
+                            style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', color: '#003366', fontWeight: '600', boxSizing: 'border-box' }} 
+                          />
+                        </div>
+                      )}
+
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <h3 style={{ fontSize: '14px', color: '#64748b', marginTop: 0, marginBottom: '15px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>Thi đua (Space Race)</h3>
+                      
+                      <div style={{ marginBottom: '24px' }}>
+                        <label style={{ display: 'block', fontWeight: '700', color: '#003366', marginBottom: '8px' }}>Số lượng đội (Từ 2 - 10)</label>
+                        <select value={teamCount} onChange={(e) => setTeamCount(e.target.value)} style={{ width: '100%', padding: '14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontWeight: '700', color: '#334155' }}>
+                          {[...Array(9)].map((_, i) => <option key={i+2} value={i+2}>{i+2} Đội</option>)}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontWeight: '700', color: '#003366', marginBottom: '8px' }}>Biểu tượng Đường đua</label>
+                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                          {['Rocket', 'UFO', 'Car', 'Bug', 'Dino', 'Horse'].map(icon => (
+                            <div key={icon} onClick={() => setRaceIcon(icon)} style={{ padding: '8px 16px', borderRadius: '12px', border: raceIcon === icon ? '2px solid #003366' : '1px solid #cbd5e1', backgroundColor: raceIcon === icon ? '#f0f9ff' : 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', color: raceIcon === icon ? '#003366' : '#64748b', transition: 'all 0.2s' }}>
+                              {icon === 'Rocket' && <SvgIcons.RaceRocket />}
+                              {icon === 'UFO' && <SvgIcons.RaceUFO />}
+                              {icon === 'Car' && <SvgIcons.RaceCar />}
+                              {icon === 'Bug' && <SvgIcons.RaceBug />}
+                              {icon === 'Dino' && <SvgIcons.RaceDino />}
+                              {icon === 'Horse' && <SvgIcons.RaceHorse />}
+                              <span style={{ fontSize: '14px' }}>{icon}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 style={{ fontSize: '14px', color: '#64748b', marginTop: 0, marginBottom: '15px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '1px' }}>Settings</h3>
+                      <Toggle label="Shuffle Questions" checked={shuffleQuestions} onChange={setShuffleQuestions} />
+                      <Toggle label="Shuffle Answers" checked={shuffleAnswers} onChange={setShuffleAnswers} />
+                      <Toggle label="Show Question Feedback" checked={showFeedback} onChange={setShowFeedback} />
+                      
+                      <div style={{ padding: '14px', backgroundColor: '#fef3c7', borderRadius: '12px', border: '1px solid #fde68a', marginTop: '16px', fontSize: '13px', color: '#d97706', lineHeight: '1.6' }}>
+                        * Học viên sẽ làm bài với giao diện Instant Feedback để đua trực tiếp.<br/>
+                        * Học viên sẽ tự chọn Đội (Team) trước khi bắt đầu làm bài.
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               <div style={{ padding: '20px 30px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', backgroundColor: '#f8fafc', borderRadius: '0 0 24px 24px' }}>

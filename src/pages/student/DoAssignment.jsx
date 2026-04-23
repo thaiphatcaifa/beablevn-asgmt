@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../firebase';
 
-// --- HỆ THỐNG SVG ICONS TỐI GIẢN (Nét mảnh, màu #003366) ---
+// --- HỆ THỐNG SVG ICONS TỐI GIẢN & EMOJI SỐNG ĐỘNG ---
 const SvgIcons = {
   Submit: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>,
   Wait: () => <svg width="48" height="48" fill="none" stroke="#003366" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>,
@@ -20,9 +20,24 @@ const SvgIcons = {
   Refresh: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>,
   Quiz: () => <svg width="40" height="40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>,
   Book: () => <svg width="40" height="40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>,
-  Flip: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>,
-  Timer: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+  Timer: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>,
+  // Emoji Icons cho Thi đua
+  RaceRocket: () => <span style={{ fontSize: '64px', display: 'inline-block', lineHeight: 1 }}>🚀</span>,
+  RaceUFO: () => <span style={{ fontSize: '64px', display: 'inline-block', lineHeight: 1 }}>🛸</span>,
+  RaceCar: () => <span style={{ fontSize: '64px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🏎️</span>,
+  RaceBug: () => <span style={{ fontSize: '64px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🐛</span>,
+  RaceDino: () => <span style={{ fontSize: '64px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🦖</span>,
+  RaceHorse: () => <span style={{ fontSize: '64px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🐎</span>,
 };
+
+// --- MÀU SẮC ĐỘI THI ĐUA ---
+const TEAM_COLORS = [
+  { name: 'Xanh dương', hex: '#3b82f6' }, { name: 'Hồng', hex: '#ec4899' },
+  { name: 'Xanh lá', hex: '#10b981' }, { name: 'Vàng', hex: '#eab308' },
+  { name: 'Cam', hex: '#f97316' }, { name: 'Tím', hex: '#a855f7' },
+  { name: 'Đỏ', hex: '#ef4444' }, { name: 'Xám', hex: '#64748b' },
+  { name: 'Nâu', hex: '#78350f' }, { name: 'Đen', hex: '#1e293b' }
+];
 
 export default function DoAssignment() {
   const { roomId } = useParams(); 
@@ -46,15 +61,16 @@ export default function DoAssignment() {
   const [currentSessionId, setCurrentSessionId] = useState(null);
   const sessionsRef = useRef([]);
 
+  // --- SPACE RACE STATE ---
+  const [studentTeam, setStudentTeam] = useState(null);
+
   // --- TIMER STATE ---
   const [timeLeft, setTimeLeft] = useState(null);
-  const [studentStartTime, setStudentStartTime] = useState(null); // Lưu thời điểm bắt đầu của cá nhân
+  const [studentStartTime, setStudentStartTime] = useState(null);
   const autoSubmitFired = useRef(false);
 
-  // Refs to access latest state inside async functions
   const localAnswersRef = useRef(localAnswers);
   useEffect(() => { localAnswersRef.current = localAnswers; }, [localAnswers]);
-  
   const shuffledQuizRef = useRef(shuffledQuiz);
   useEffect(() => { shuffledQuizRef.current = shuffledQuiz; }, [shuffledQuiz]);
 
@@ -91,7 +107,6 @@ export default function DoAssignment() {
     navigate('/student/login'); 
   };
 
-  // Lắng nghe Room
   useEffect(() => {
     const roomRef = doc(db, "rooms", roomId);
     const unsubscribe = onSnapshot(roomRef, async (snap) => {
@@ -105,7 +120,7 @@ export default function DoAssignment() {
           const quizSnap = await getDoc(doc(db, "quizzes", activeSession.quizId));
           if (quizSnap.exists()) setQuiz({ id: activeSession.quizId, ...quizSnap.data() });
         } else {
-          setQuiz(null); setSessionInfo(null); setShuffledQuiz(null);
+          setQuiz(null); setSessionInfo(null); setShuffledQuiz(null); setStudentTeam(null);
         }
 
         if (data.assignedVocabId) {
@@ -119,10 +134,6 @@ export default function DoAssignment() {
     return () => unsubscribe();
   }, [roomId]);
 
-
-  // ==========================================
-  // LOGIC QUIZ
-  // ==========================================
   useEffect(() => {
     if (sessionInfo?.startTime) {
       setIsInitialized(false);
@@ -132,7 +143,7 @@ export default function DoAssignment() {
       setIsSubmitted(false);
       sessionsRef.current = [];
       autoSubmitFired.current = false;
-      setStudentStartTime(null); // Đặt lại thời điểm bắt đầu
+      setStudentStartTime(null);
     }
   }, [sessionInfo?.startTime]);
 
@@ -183,14 +194,16 @@ export default function DoAssignment() {
       let prevRaw = {};
       let existingSessions = [];
       let isSub = false;
+      let existingTeam = null;
 
       if (subSnap.exists()) {
         const data = subSnap.data();
         isSub = !!data.submittedAt;
         existingSessions = data.sessions || [];
+        existingTeam = data.team || null;
 
         if (!isSub) {
-          if (sessionInfo.settings?.oneAttempt) {
+          if (sessionInfo.settings?.oneAttempt || sessionInfo.mode === 'Space Race') {
             prevRaw = data.rawAnswers || {};
             const locks = {};
             Object.keys(prevRaw).forEach(k => {
@@ -214,18 +227,20 @@ export default function DoAssignment() {
         await setDoc(subRef, { studentId, studentName: studentId, rawAnswers: prevRaw, answers: {}, sessions: existingSessions, lastUpdated: new Date().toISOString() }, { merge: true });
       }
       
-      // Khởi tạo studentStartTime dựa vào session đầu tiên để tính giờ đếm ngược
       if (existingSessions.length > 0) {
         setStudentStartTime(existingSessions[0].loginTime);
       }
 
-      setLocalAnswers(prevRaw); setIsSubmitted(isSub); setIsInitialized(true);
+      setLocalAnswers(prevRaw); 
+      setStudentTeam(existingTeam); // Khôi phục Team nếu đã chọn
+      setIsSubmitted(isSub); 
+      setIsInitialized(true);
     };
 
     initSession();
   }, [shuffledQuiz, sessionInfo, isInitialized, roomId, studentId]);
 
-  // --- LOGIC TIMER (ĐẾM NGƯỢC TỪ STUDENT START TIME) ---
+  // --- LOGIC TIMER ---
   useEffect(() => {
     if (!sessionInfo?.settings?.timeLimit || isSubmitted || view !== 'QUIZ' || !studentStartTime) {
       setTimeLeft(null);
@@ -321,7 +336,6 @@ export default function DoAssignment() {
       shuffledQuiz.questions.forEach(q => {
         const ans = localAnswers[q.id];
         if (ans === undefined || ans === null) return;
-
         let isEmpty = true;
         if (q.type === 'MCQ') {
           formattedAnswers[q.id] = ans.map(i => String.fromCharCode(65 + i)).join(', ');
@@ -354,12 +368,16 @@ export default function DoAssignment() {
       sessionsRef.current = updatedSessions; 
 
       try {
-        await setDoc(doc(db, `rooms/${roomId}/submissions`, studentId), { studentId, studentName: studentId, rawAnswers: localAnswers, answers: formattedAnswers, sessions: updatedSessions, lastUpdated: new Date().toISOString() }, { merge: true });
+        await setDoc(doc(db, `rooms/${roomId}/submissions`, studentId), { 
+          studentId, studentName: studentId, rawAnswers: localAnswers, answers: formattedAnswers, 
+          sessions: updatedSessions, lastUpdated: new Date().toISOString(),
+          team: studentTeam || null 
+        }, { merge: true });
       } catch (error) { console.error(error); }
     };
     const timeoutId = setTimeout(() => { syncAnswers(); }, 800); 
     return () => clearTimeout(timeoutId);
-  }, [localAnswers, shuffledQuiz, isInitialized, currentSessionId, isSubmitted, roomId, studentId, view]);
+  }, [localAnswers, shuffledQuiz, isInitialized, currentSessionId, isSubmitted, roomId, studentId, view, studentTeam]);
 
   const submitQuizData = async () => {
     const formattedAnswers = {};
@@ -378,7 +396,9 @@ export default function DoAssignment() {
       });
     }
     try {
-      await setDoc(doc(db, `rooms/${roomId}/submissions`, studentId), { studentId, studentName: studentId, answers: formattedAnswers, submittedAt: new Date().toISOString(), score: 0 }, { merge: true });
+      await setDoc(doc(db, `rooms/${roomId}/submissions`, studentId), { 
+        studentId, studentName: studentId, answers: formattedAnswers, submittedAt: new Date().toISOString(), score: 0 
+      }, { merge: true });
       setIsSubmitted(true);
     } catch (error) { alert("Lỗi nộp bài."); }
   };
@@ -470,14 +490,14 @@ export default function DoAssignment() {
   // ==========================================
 
   const appHeader = (titleText, showBack = false, backAction = null) => (
-    <header style={{ backgroundColor: 'white', padding: isMobile ? '12px 20px' : '20px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 50, borderBottom: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)' }}>
+    <header style={{ backgroundColor: studentTeam ? `${studentTeam}15` : 'white', padding: isMobile ? '12px 20px' : '20px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 50, borderBottom: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.02)', transition: 'background 0.3s' }}>
       
       <div style={{ display: 'flex', alignItems: 'center', gap: '15px', overflow: 'hidden', flex: 1 }}>
         {showBack && (
-          <button onClick={backAction} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#003366', display: 'flex', padding: 0 }}><SvgIcons.Close /></button>
+          <button onClick={backAction} style={{ background: 'none', border: 'none', cursor: 'pointer', color: studentTeam || '#003366', display: 'flex', padding: 0 }}><SvgIcons.Close /></button>
         )}
         <img src="/BA LOGO.png" alt="BA Logo" style={{ height: '32px', objectFit: 'contain', flexShrink: 0 }} />
-        {!isMobile && <h1 style={{ fontSize: '22px', margin: 0, fontWeight: '800', color: '#003366', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{titleText}</h1>}
+        {!isMobile && <h1 style={{ fontSize: '22px', margin: 0, fontWeight: '800', color: studentTeam || '#003366', textTransform: 'uppercase', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{titleText}</h1>}
       </div>
 
       {view === 'QUIZ' && sessionInfo?.settings?.timeLimit && timeLeft !== null && !isSubmitted && (
@@ -490,7 +510,7 @@ export default function DoAssignment() {
 
       <div style={{ display: 'flex', alignItems: 'center', flex: 1, justifyContent: 'flex-end' }}>
         <div style={{ position: 'relative' }} ref={menuRef}>
-          <button onClick={() => setShowMenu(!showMenu)} style={{ background: 'none', border: 'none', color: '#003366', cursor: 'pointer', display: 'flex', padding: '8px' }}>
+          <button onClick={() => setShowMenu(!showMenu)} style={{ background: 'none', border: 'none', color: studentTeam || '#003366', cursor: 'pointer', display: 'flex', padding: '8px' }}>
             <SvgIcons.Menu />
           </button>
 
@@ -531,7 +551,48 @@ export default function DoAssignment() {
     </div>
   );
 
-  // RENDER TÙY CHỌN (DASHBOARD)
+  // --- MÀN HÌNH CHỌN ĐỘI THI ĐUA (SPACE RACE) ---
+  if (!showVerification && sessionInfo?.mode === 'Space Race' && !studentTeam && view === 'DASHBOARD') {
+    const numTeams = sessionInfo.settings?.teamCount || 2;
+    const teams = TEAM_COLORS.slice(0, numTeams);
+    const raceIcon = sessionInfo.settings?.raceIcon || 'Rocket';
+    
+    return (
+      <div style={{ backgroundColor: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column', fontFamily: "'Josefin Sans', sans-serif" }}>
+        {appHeader('Space Race')}
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          <div style={{ backgroundColor: 'white', padding: '40px', borderRadius: '24px', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.05)', maxWidth: '600px', width: '100%', textAlign: 'center' }}>
+            
+            <div style={{ marginBottom: '10px', display: 'flex', justifyContent: 'center', filter: 'drop-shadow(0 10px 15px rgba(0,0,0,0.1))' }}>
+              {raceIcon === 'Rocket' && <SvgIcons.RaceRocket />}
+              {raceIcon === 'UFO' && <SvgIcons.RaceUFO />}
+              {raceIcon === 'Car' && <SvgIcons.RaceCar />}
+              {raceIcon === 'Bug' && <SvgIcons.RaceBug />}
+              {raceIcon === 'Dino' && <SvgIcons.RaceDino />}
+              {raceIcon === 'Horse' && <SvgIcons.RaceHorse />}
+            </div>
+
+            <h2 style={{ color: '#003366', fontSize: '28px', fontWeight: '800', marginBottom: '10px' }}>Chọn đội của bạn!</h2>
+            <p style={{ color: '#64748b', marginBottom: '40px', fontSize: '16px' }}>Hãy chọn màu đại diện cho đội của bạn để bắt đầu cuộc đua.</p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '16px' }}>
+              {teams.map(t => (
+                <button 
+                  key={t.name}
+                  onClick={() => { setStudentTeam(t.hex); setView('QUIZ'); }}
+                  style={{ backgroundColor: t.hex, color: 'white', padding: '20px', borderRadius: '16px', border: 'none', cursor: 'pointer', fontWeight: '800', fontSize: '16px', boxShadow: `0 4px 10px ${t.hex}66`, transition: 'transform 0.2s' }}
+                  onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-4px)'}
+                  onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                >
+                  ĐỘI {t.name.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (view === 'DASHBOARD') {
     if (!quiz && !vocabSet) {
       return (
@@ -562,7 +623,7 @@ export default function DoAssignment() {
             {quiz && (
               <button onClick={() => setView('QUIZ')} style={{ flex: 1, backgroundColor: 'white', border: '2px solid #e67e22', borderRadius: '20px', padding: '40px 20px', cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 10px 15px -3px rgba(230,126,34,0.1)' }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-5px)'} onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>
                 <div style={{ color: '#e67e22', marginBottom: '20px', display: 'flex', justifyContent: 'center' }}><SvgIcons.Quiz /></div>
-                <h3 style={{ margin: 0, color: '#003366', fontSize: '22px', fontWeight: '800' }}>Làm bài Quiz</h3>
+                <h3 style={{ margin: 0, color: '#003366', fontSize: '22px', fontWeight: '800' }}>Làm bài kiểm tra</h3>
                 <p style={{ color: '#64748b', fontSize: '14px', marginTop: '10px' }}>{shuffledQuiz?.title || quiz.title}</p>
               </button>
             )}
@@ -573,7 +634,6 @@ export default function DoAssignment() {
     );
   }
 
-  // RENDER VOCABULARY SYSTEM
   if (view.startsWith('VOCAB')) {
     if (view === 'VOCAB_HOME') {
       return (
@@ -693,17 +753,15 @@ export default function DoAssignment() {
       <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', color: '#003366', padding: '20px', fontFamily: "'Josefin Sans', sans-serif" }}>
         <div style={{ marginBottom: '24px' }}><SvgIcons.CheckBig /></div>
         <h2 style={{ fontWeight: '800', margin: '0 0 12px 0', fontSize: '22px' }}>Đã nộp bài thành công!</h2>
-        <p style={{ color: '#64748b', textAlign: 'center', maxWidth: '400px', lineHeight: '1.6' }}>Kết quả của bạn đã được gửi đến giáo viên. Vui lòng giữ nguyên màn hình và chờ hoạt động tiếp theo.</p>
+        <p style={{ color: '#64748b', textAlign: 'center', maxWidth: '400px', lineHeight: '1.6' }}>Kết quả của bạn đã được gửi đến giáo viên.</p>
         <button onClick={() => setView('DASHBOARD')} style={{ marginTop: '30px', padding: '12px 24px', borderRadius: '100px', backgroundColor: 'white', border: '1px solid #cbd5e1', fontWeight: '700', cursor: 'pointer', color: '#003366', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f5f9'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}>Quay lại Trang chủ</button>
       </div>
     );
   }
 
   const isTeacherPaced = sessionInfo?.mode === 'Teacher Paced';
-  const isInstantFeedback = sessionInfo?.mode === 'Instant Feedback';
-  
+  const isInstantFeedback = sessionInfo?.mode === 'Instant Feedback' || sessionInfo?.mode === 'Space Race';
   const requiresLocking = isInstantFeedback || isTeacherPaced;
-
   const currentQuestionIndex = sessionInfo?.currentQuestionIndex || 0;
   const showFeedback = sessionInfo?.settings?.showFeedback;
   let globalQuestionIndex = 1;
