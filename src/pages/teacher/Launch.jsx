@@ -73,9 +73,11 @@ export default function Launch() {
   const [quizzes, setQuizzes] = useState([]);
   const [step, setStep] = useState('MENU');
   
-  const [activeMode, setActiveMode] = useState('NORMAL');
+  // Modes
+  const [activeMode, setActiveMode] = useState('NORMAL'); // NORMAL, SPACE_RACE, WEEKLY
   const [selectedQuizId, setSelectedQuizId] = useState('');
 
+  // Settings
   const [deliveryMethod, setDeliveryMethod] = useState('Instant Feedback');
   const [shuffleQuestions, setShuffleQuestions] = useState(false);
   const [shuffleAnswers, setShuffleAnswers] = useState(false);
@@ -85,13 +87,15 @@ export default function Launch() {
   const [hasTimer, setHasTimer] = useState(false);
   const [timeLimit, setTimeLimit] = useState('');
 
+  // Space Race Settings
   const [teamCount, setTeamCount] = useState(2);
   const [raceIcon, setRaceIcon] = useState('Rocket');
 
+  // Weekly Planner Settings
   const [weekStartDate, setWeekStartDate] = useState(() => {
     const d = new Date();
     const day = d.getDay() || 7;
-    d.setDate(d.getDate() - day + 1); 
+    d.setDate(d.getDate() - day + 1); // Get Monday
     return d.toISOString().split('T')[0];
   });
   const [commonOpen, setCommonOpen] = useState('08:00');
@@ -139,10 +143,8 @@ export default function Launch() {
     if (question.type === 'MCQ') return ans === (question.correctOptions || []).sort().map(i => String.fromCharCode(65 + i)).join(', ').toLowerCase();
     if (['EVALUATION', 'MATCHING'].includes(question.type)) return ans === String(question.correctOption || question.correctMatch || '').trim().toLowerCase();
     if (question.type === 'SAQ') {
-       const correctOpts = Array.isArray(question.correctAnswers) 
-         ? question.correctAnswers.map(s => String(s).trim().toLowerCase()) 
-         : (question.correctText || '').split(',').map(s => s.trim().toLowerCase());
-       return correctOpts.includes(ans);
+       const delimiter = (question.correctText || '').includes('|||') ? '|||' : ',';
+       return (question.correctText || '').split(delimiter).map(s => s.trim().toLowerCase()).includes(ans);
     }
     if (question.type.startsWith('GAP_FILL')) {
        let allCorrect = true;
@@ -165,8 +167,9 @@ export default function Launch() {
     let activeDaysToSave = [];
     if (activeMode === 'WEEKLY') {
       activeDaysToSave = weeklyDays.filter(d => d.quizId).map(d => {
+        // KHẮC PHỤC LỖI TIMEZONE OFFSET: Parse local time trực tiếp
         const [year, month, day] = weekStartDate.split('-').map(Number);
-        const baseDate = new Date(year, month - 1, day); 
+        const baseDate = new Date(year, month - 1, day); // Midnight Local
         baseDate.setDate(baseDate.getDate() + d.id);
         
         const yyyy = baseDate.getFullYear();
@@ -212,6 +215,7 @@ export default function Launch() {
         const roster = roomData.students || [];
         let oldQuizData = null;
         
+        // Xử lý lưu report bài cũ
         const activeQuizId = oldSession.mode === 'Weekly' && oldSession.activeDays 
               ? oldSession.activeDays[oldSession.currentDayIndex]?.quizId 
               : oldSession.quizId;
@@ -240,7 +244,7 @@ export default function Launch() {
           });
 
           const questionsToSave = oldQuizData.questions.map(q => ({ 
-            id: q.id, type: q.type, text: q.text, options: q.options || [], correctOptions: q.correctOptions || [], correctOption: q.correctOption || '', correctMatch: q.correctMatch || '', correctText: q.correctText || '', correctAnswers: q.correctAnswers || [], gaps: q.gaps || [], labels: q.labels || [], explanation: q.explanation || ''
+            id: q.id, type: q.type, text: q.text, options: q.options || [], correctOptions: q.correctOptions || [], correctOption: q.correctOption || '', correctMatch: q.correctMatch || '', correctText: q.correctText || '', gaps: q.gaps || [], labels: q.labels || [], explanation: q.explanation || ''
           }));
 
           let reportName = oldSession.quizTitle || "Untitled Activity";
@@ -262,6 +266,7 @@ export default function Launch() {
         for (const subDoc of subDocs.docs) await deleteDoc(doc(db, `rooms/${activeRoom}/submissions`, subDoc.id));
       }
 
+      // TỰ ĐỘNG CHỌN NGÀY ACTIVE NẾU LÀ WEEKLY (Xử lý Auto Rollover ngay khi Launch)
       let initialDayIndex = 0;
       if (activeMode === 'WEEKLY') {
          const now = Date.now();
@@ -271,11 +276,13 @@ export default function Launch() {
                 break;
             }
          }
+         // Nếu đã qua hết hạn tất cả các ngày, giữ ở ngày cuối cùng để nó tự báo "Đã hết hạn"
          if (now > new Date(activeDaysToSave[activeDaysToSave.length - 1].endTime).getTime()) {
             initialDayIndex = activeDaysToSave.length - 1;
          }
       }
 
+      // XÂY DỰNG OBJECT PHÁT BÀI MỚI
       let activeSessionObject = {};
       if (activeMode === 'WEEKLY') {
         activeSessionObject = {

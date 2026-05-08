@@ -118,7 +118,8 @@ export default function LiveResults() {
       return ans === correctStr;
     }
     if (question.type === 'SAQ') {
-      const correctOpts = (question.correctText || '').split(',').map(s => s.trim().toLowerCase());
+      const delimiter = (question.correctText || '').includes('|||') ? '|||' : ',';
+      const correctOpts = (question.correctText || '').split(delimiter).map(s => s.trim().toLowerCase());
       return correctOpts.includes(ans);
     }
     if (question.type.startsWith('GAP_FILL')) {
