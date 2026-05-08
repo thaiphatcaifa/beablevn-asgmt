@@ -62,20 +62,13 @@ const RichTextInput = ({ label, value, onChange, placeholder, minHeight = '60px'
 
   const handleInsertImage = (e) => {
     e.preventDefault();
-    
-    // Ghi nhớ chính xác vùng chọn của Editor HIỆN TẠI
     const { sel, range } = focusEditorAndGetSelection();
-
-    // Mở prompt nhập link
     const url = window.prompt("Nhập đường dẫn (URL) hình ảnh:");
-    
     if (url && url.trim() !== '') {
       if (editorRef.current) {
-        // Phục hồi lại tiêu điểm (focus) vào đúng Editor này
         editorRef.current.focus();
         sel.removeAllRanges();
         sel.addRange(range);
-        
         const imgHtml = `<img src="${url}" alt="image" style="max-width: 100%; max-height: 200px; object-fit: contain; border-radius: 8px; display: block; margin: 10px auto;" />`;
         document.execCommand('insertHTML', false, imgHtml);
         onChange(editorRef.current.innerHTML);
@@ -93,8 +86,6 @@ const RichTextInput = ({ label, value, onChange, placeholder, minHeight = '60px'
     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
       {label && <label style={{ fontWeight: '700', fontSize: '13px', color: '#003366', display: 'block' }}>{label}</label>}
       <div style={{ border: '1px solid #cbd5e1', borderRadius: '12px', overflow: 'hidden', backgroundColor: 'white', transition: 'border-color 0.2s' }}>
-        
-        {/* Toolbar */}
         <div style={{ display: 'flex', gap: '8px', padding: '8px 16px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc' }}>
           <button onMouseDown={(e) => handleCommand('bold', e)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#003366', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="In đậm"><SvgIcons.Bold /></button>
           <button onMouseDown={(e) => handleCommand('italic', e)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#003366', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="In nghiêng"><SvgIcons.Italic /></button>
@@ -102,17 +93,7 @@ const RichTextInput = ({ label, value, onChange, placeholder, minHeight = '60px'
           <div style={{ width: '1px', backgroundColor: '#cbd5e1', margin: '0 4px' }}></div>
           <button onMouseDown={handleInsertImage} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: '#003366', display: 'flex', alignItems: 'center', justifyContent: 'center' }} title="Chèn ảnh bằng URL"><SvgIcons.Image /></button>
         </div>
-        
-        {/* Editor Area */}
-        <div
-          className="rich-text-editor"
-          ref={editorRef}
-          contentEditable
-          onInput={handleInput}
-          onBlur={handleInput}
-          style={{ padding: '12px 16px', minHeight: minHeight, outline: 'none', fontSize: '15px', color: '#334155', lineHeight: '1.6' }}
-          data-placeholder={placeholder}
-        />
+        <div className="rich-text-editor" ref={editorRef} contentEditable onInput={handleInput} onBlur={handleInput} style={{ padding: '12px 16px', minHeight: minHeight, outline: 'none', fontSize: '15px', color: '#334155', lineHeight: '1.6' }} data-placeholder={placeholder} />
       </div>
     </div>
   );
@@ -135,26 +116,18 @@ const PASSAGE_QUESTION_TYPES = {
   SAQ: 'Short Answer Questions'
 };
 
-// --- COMPONENT FOOTER CHO TỪNG SECTION ---
 const SectionFooter = ({ section, onAddQuestion, isMobile }) => {
   const allowedTypes = section.type === 'SINGLE' ? SINGLE_QUESTION_TYPES : PASSAGE_QUESTION_TYPES;
   const [qType, setQType] = useState('MCQ');
 
   return (
     <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '12px', marginTop: '20px', borderTop: '1px dashed #cbd5e1', paddingTop: '20px' }}>
-      <select 
-        value={qType} 
-        onChange={e => setQType(e.target.value)} 
-        style={{ flex: 1, padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: '600', color: '#334155', outline: 'none', backgroundColor: '#f8fafc', appearance: 'none', cursor: 'pointer' }}
-      >
+      <select value={qType} onChange={e => setQType(e.target.value)} style={{ flex: 1, padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', fontWeight: '600', color: '#334155', outline: 'none', backgroundColor: '#f8fafc', appearance: 'none', cursor: 'pointer' }}>
         <optgroup label="Chọn Dạng Câu Hỏi">
           {Object.entries(allowedTypes).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
         </optgroup>
       </select>
-      <button 
-        onClick={() => onAddQuestion(section.id, qType)} 
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', backgroundColor: '#003366', color: 'white', fontWeight: '700', border: 'none', padding: '12px 24px', borderRadius: '8px', cursor: 'pointer', transition: 'background 0.2s', width: isMobile ? '100%' : 'auto' }}
-      >
+      <button onClick={() => onAddQuestion(section.id, qType)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', backgroundColor: '#003366', color: 'white', fontWeight: '700', border: 'none', padding: '12px 24px', borderRadius: '8px', cursor: 'pointer', transition: 'background 0.2s', width: isMobile ? '100%' : 'auto' }}>
         <SvgIcons.Plus /> Thêm câu hỏi
       </button>
     </div>
@@ -194,7 +167,12 @@ export default function CreateExercise() {
               setSections(data.sections);
               setQuestions((data.questions || []).map(q => {
                 if (q.type === 'SAQ') {
-                  const answersArr = q.correctText ? q.correctText.split(',').map(s=>s.trim()) : [''];
+                  let answersArr = [''];
+                  if (Array.isArray(q.correctAnswers)) {
+                    answersArr = q.correctAnswers;
+                  } else if (q.correctText) {
+                    answersArr = q.correctText.split(',').map(s=>s.trim());
+                  }
                   return { ...q, correctAnswers: answersArr.length > 0 ? answersArr : [''] };
                 }
                 return q;
@@ -209,7 +187,12 @@ export default function CreateExercise() {
               setQuestions((data.questions || []).map(q => {
                 let mappedQ = { ...q, sectionId: defaultSecId };
                 if (mappedQ.type === 'SAQ') {
-                  const answersArr = mappedQ.correctText ? mappedQ.correctText.split(',').map(s=>s.trim()) : [''];
+                  let answersArr = [''];
+                  if (Array.isArray(mappedQ.correctAnswers)) {
+                    answersArr = mappedQ.correctAnswers;
+                  } else if (mappedQ.correctText) {
+                    answersArr = mappedQ.correctText.split(',').map(s=>s.trim());
+                  }
                   mappedQ.correctAnswers = answersArr.length > 0 ? answersArr : [''];
                 }
                 return mappedQ;
@@ -255,7 +238,12 @@ export default function CreateExercise() {
         if (data.questions) {
           setQuestions(data.questions.map(q => {
               if (q.type === 'SAQ') {
-                  const answersArr = q.correctText ? q.correctText.split(',').map(s=>s.trim()) : [''];
+                  let answersArr = [''];
+                  if (Array.isArray(q.correctAnswers)) {
+                    answersArr = q.correctAnswers;
+                  } else if (q.correctText) {
+                    answersArr = q.correctText.split(',').map(s=>s.trim());
+                  }
                   return { ...q, correctAnswers: answersArr.length > 0 ? answersArr : [''] };
               }
               return q;
@@ -395,8 +383,8 @@ export default function CreateExercise() {
       const questionsToSave = questions.map(q => {
         const copy = { ...q };
         if (copy.type === 'SAQ') {
-          copy.correctText = (copy.correctAnswers || []).filter(a => a.trim() !== '').join(',');
-          delete copy.correctAnswers;
+          copy.correctAnswers = (copy.correctAnswers || []).filter(a => typeof a === 'string' && a.trim() !== '');
+          delete copy.correctText;
         }
         return copy;
       });

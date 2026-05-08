@@ -21,7 +21,14 @@ const SvgIcons = {
   Quiz: () => <svg width="40" height="40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>,
   Book: () => <svg width="40" height="40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>,
   Timer: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>,
-  Race: () => <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg>
+  Race: () => <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"></path><line x1="4" y1="22" x2="4" y2="15"></line></svg>,
+  Flip: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/></svg>,
+  RaceRocket: () => <span style={{ fontSize: '48px', display: 'inline-block', lineHeight: 1 }}>🚀</span>,
+  RaceUFO: () => <span style={{ fontSize: '48px', display: 'inline-block', lineHeight: 1 }}>🛸</span>,
+  RaceCar: () => <span style={{ fontSize: '48px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🏎️</span>,
+  RaceBug: () => <span style={{ fontSize: '48px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🐛</span>,
+  RaceDino: () => <span style={{ fontSize: '48px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🦖</span>,
+  RaceHorse: () => <span style={{ fontSize: '48px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🐎</span>,
 };
 
 const TEAM_COLORS = [
@@ -36,7 +43,7 @@ export default function DoAssignment() {
   const { roomId } = useParams(); 
   const navigate = useNavigate();
   
-  const [view, setView] = useState('DASHBOARD'); // WAITING_START, DASHBOARD, QUIZ, ...
+  const [view, setView] = useState('DASHBOARD'); 
   const [waitingMsg, setWaitingMsg] = useState('');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const studentId = localStorage.getItem('currentStudentId');
@@ -131,7 +138,6 @@ export default function DoAssignment() {
     return () => unsubscribe();
   }, [roomId, quiz]);
 
-  // LOGIC KIỂM TRA KHUNG GIỜ WEEKLY
   useEffect(() => {
      if (sessionInfo?.mode === 'Weekly') {
          const currentDay = sessionInfo.activeDays[sessionInfo.currentDayIndex];
@@ -161,7 +167,6 @@ export default function DoAssignment() {
      }
   }, [sessionInfo, view]);
 
-  // RESET KHI CHUYỂN BÀI MỚI HOẶC NGÀY MỚI (WEEKLY)
   useEffect(() => {
     if (sessionInfo?.startTime) {
       setIsInitialized(false);
@@ -268,7 +273,6 @@ export default function DoAssignment() {
     initSession();
   }, [shuffledQuiz, sessionInfo, isInitialized, roomId, studentId, view]);
 
-  // --- LOGIC TIMER (ÁP DỤNG CHO NORMAL VÀ WEEKLY) ---
   useEffect(() => {
     let activeTimeLimit = null;
     let endMsCutoff = Infinity;
@@ -318,7 +322,12 @@ export default function DoAssignment() {
     const ans = String(studentAnswer).trim().toLowerCase();
     if (question.type === 'MCQ') return ans === (question.correctOptions || []).sort().map(i => String.fromCharCode(65 + i)).join(', ').toLowerCase();
     if (['EVALUATION', 'MATCHING'].includes(question.type)) return ans === String(question.correctOption || question.correctMatch || '').trim().toLowerCase();
-    if (question.type === 'SAQ') return (question.correctText || '').split(',').map(s => s.trim().toLowerCase()).includes(ans);
+    if (question.type === 'SAQ') {
+       const correctOpts = Array.isArray(question.correctAnswers) 
+         ? question.correctAnswers.map(s => String(s).trim().toLowerCase()) 
+         : [String(question.correctText || '').trim().toLowerCase()];
+       return correctOpts.includes(ans);
+    }
     if (question.type.startsWith('GAP_FILL')) {
        let allCorrect = true;
        const items = question.type === 'GAP_FILL_PARAGRAPH' ? question.gaps : question.labels;
@@ -346,7 +355,10 @@ export default function DoAssignment() {
        return correctLetters.join(', ');
     }
     if (['EVALUATION', 'MATCHING'].includes(q.type)) return q.correctOption || q.correctMatch || '';
-    if (q.type === 'SAQ') return q.correctText || '';
+    if (q.type === 'SAQ') {
+       if (Array.isArray(q.correctAnswers)) return q.correctAnswers.join(' / ');
+       return q.correctText || '';
+    }
     if (q.type.startsWith('GAP_FILL')) {
       const items = q.type === 'GAP_FILL_PARAGRAPH' ? q.gaps : q.labels;
       if (!items || items.length === 0) return '';
@@ -383,19 +395,22 @@ export default function DoAssignment() {
         const ans = localAnswers[q.id];
         if (ans === undefined || ans === null) return;
         let isEmpty = true;
+        
         if (q.type === 'MCQ') {
-          formattedAnswers[q.id] = ans.map(i => String.fromCharCode(65 + i)).join(', ');
-          if (ans.length > 0) isEmpty = false;
+          formattedAnswers[q.id] = Array.isArray(ans) ? ans.map(i => String.fromCharCode(65 + i)).join(', ') : '';
+          if (Array.isArray(ans) && ans.length > 0) isEmpty = false;
         } else if (q.type === 'GAP_FILL_PARAGRAPH' || q.type === 'GAP_FILL_DIAGRAM') {
           const parts = [];
-          Object.keys(ans).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(k => {
-             if (ans[k] && ans[k].trim() !== '') isEmpty = false;
-             parts.push(`[${k}]: ${ans[k]}`);
-          });
+          if (typeof ans === 'object' && !Array.isArray(ans)) {
+              Object.keys(ans).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(k => {
+                 if (ans[k] && String(ans[k]).trim() !== '') isEmpty = false;
+                 parts.push(`[${k}]: ${ans[k]}`);
+              });
+          }
           formattedAnswers[q.id] = parts.join(' | ');
         } else {
-          formattedAnswers[q.id] = ans;
-          if (ans.trim() !== '') isEmpty = false;
+          formattedAnswers[q.id] = String(ans);
+          if (String(ans).trim() !== '') isEmpty = false;
         }
         if (!isEmpty) completedCount++;
       });
@@ -434,11 +449,18 @@ export default function DoAssignment() {
       currentQuiz.questions.forEach(q => {
         const ans = currentAnswers[q.id];
         if (ans === undefined || ans === null) { formattedAnswers[q.id] = ''; return; }
-        if (q.type === 'MCQ') formattedAnswers[q.id] = ans.map(i => String.fromCharCode(65 + i)).join(', ');
-        else if (q.type === 'GAP_FILL_PARAGRAPH' || q.type === 'GAP_FILL_DIAGRAM') {
-          const parts = []; Object.keys(ans).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(k => parts.push(`[${k}]: ${ans[k]}`));
-          formattedAnswers[q.id] = parts.join(' | ');
-        } else formattedAnswers[q.id] = ans;
+        
+        if (q.type === 'MCQ') {
+           formattedAnswers[q.id] = Array.isArray(ans) ? ans.map(i => String.fromCharCode(65 + i)).join(', ') : '';
+        } else if (q.type === 'GAP_FILL_PARAGRAPH' || q.type === 'GAP_FILL_DIAGRAM') {
+           const parts = []; 
+           if (typeof ans === 'object' && !Array.isArray(ans)) {
+              Object.keys(ans).sort((a,b)=>parseInt(a)-parseInt(b)).forEach(k => parts.push(`[${k}]: ${ans[k]}`));
+           }
+           formattedAnswers[q.id] = parts.join(' | ');
+        } else {
+           formattedAnswers[q.id] = String(ans);
+        }
       });
     }
     try {
@@ -594,7 +616,6 @@ export default function DoAssignment() {
     </div>
   );
 
-  // MÀN HÌNH CHỜ WEEKLY PENDING
   if (view === 'WAITING_START') {
     return (
       <div style={{ backgroundColor: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -607,7 +628,6 @@ export default function DoAssignment() {
     );
   }
 
-  // MÀN HÌNH CHỌN ĐỘI THI ĐUA (SPACE RACE)
   if (!showVerification && sessionInfo?.mode === 'Space Race' && !studentTeam && view === 'DASHBOARD') {
     const numTeams = sessionInfo.settings?.teamCount || 2;
     const teams = TEAM_COLORS.slice(0, numTeams);
@@ -806,9 +826,7 @@ export default function DoAssignment() {
     }
   }
 
-  // ==========================================
-  // RENDER QUIZ 
-  // ==========================================
+  // RENDER QUIZ
   if (isSubmitted) {
     return (
       <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', color: '#003366', padding: '20px', fontFamily: "'Josefin Sans', sans-serif" }}>
@@ -885,6 +903,19 @@ export default function DoAssignment() {
 
   return (
     <div style={{ backgroundColor: '#f8fafc', minHeight: '100vh', paddingBottom: '80px', fontFamily: "'Josefin Sans', sans-serif" }}>
+      
+      {/* THÊM STYLE GHI ĐÈ ĐỂ XỬ LÝ LỖI TỈ LỆ ẢNH TRÊN MOBILE */}
+      <style>
+        {`
+          .question-content img {
+            max-width: 100% !important;
+            height: auto !important;
+            object-fit: contain !important;
+            border-radius: 8px;
+          }
+        `}
+      </style>
+
       {appHeader(displayTitle, true, () => setView('DASHBOARD'))}
 
       <div style={{ maxWidth: '840px', margin: '0 auto', padding: isMobile ? '20px 15px' : '40px 20px' }}>
@@ -924,7 +955,10 @@ export default function DoAssignment() {
                   const stAnsSAQ_MATCH = localAnswers[q.id] || '';
                   if (isLocked && stAnsSAQ_MATCH) {
                     if (q.type === 'MATCHING') isCorrectSAQ_MATCH = stAnsSAQ_MATCH.trim().toLowerCase() === String(q.correctMatch || '').trim().toLowerCase();
-                    if (q.type === 'SAQ') isCorrectSAQ_MATCH = (q.correctText || '').split(',').map(s => s.trim().toLowerCase()).includes(stAnsSAQ_MATCH.trim().toLowerCase());
+                    if (q.type === 'SAQ') {
+                        const correctOpts = Array.isArray(q.correctAnswers) ? q.correctAnswers.map(s => String(s).trim().toLowerCase()) : [String(q.correctText || '').trim().toLowerCase()];
+                        isCorrectSAQ_MATCH = correctOpts.includes(stAnsSAQ_MATCH.trim().toLowerCase());
+                    }
                   }
                   
                   const saqBg = isLocked ? (isCorrectSAQ_MATCH ? '#dcfce7' : '#fee2e2') : '#f8fafc';
@@ -941,13 +975,13 @@ export default function DoAssignment() {
                       </div>
 
                       {q.optionsList && (
-                        <div style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1', marginBottom: '20px', fontSize: '15px', color: '#334155', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
+                        <div className="question-content" style={{ backgroundColor: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1', marginBottom: '20px', fontSize: '15px', color: '#334155', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>
                           <div style={{ fontWeight: '800', color: '#003366', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}><SvgIcons.Info /> Reference List:</div>
                           {q.optionsList}
                         </div>
                       )}
 
-                      {q.text && q.type !== 'GAP_FILL_PARAGRAPH' && <div style={{ fontSize: '16px', color: '#003366', fontWeight: '500', marginBottom: '24px', lineHeight: '1.6' }} dangerouslySetInnerHTML={{ __html: q.text }} />}
+                      {q.text && q.type !== 'GAP_FILL_PARAGRAPH' && <div className="question-content" style={{ fontSize: '16px', color: '#003366', fontWeight: '500', marginBottom: '24px', lineHeight: '1.6' }} dangerouslySetInnerHTML={{ __html: q.text }} />}
 
                       {/* MCQ */}
                       {q.type === 'MCQ' && (
@@ -977,7 +1011,7 @@ export default function DoAssignment() {
                                 </div>
                                 <div style={{ fontSize: '15px', fontWeight: isChecked ? '700' : '500', lineHeight: '1.6', pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', flex: 1 }}>
                                   <span style={{ fontWeight: '800', marginRight: '8px' }}>{String.fromCharCode(65 + i)}.</span>
-                                  <div dangerouslySetInnerHTML={{ __html: optObj.text }} style={{ flex: 1, margin: 0, padding: 0 }} />
+                                  <div className="question-content" dangerouslySetInnerHTML={{ __html: optObj.text }} style={{ flex: 1, margin: 0, padding: 0 }} />
                                 </div>
                               </div>
                             );
@@ -1026,8 +1060,8 @@ export default function DoAssignment() {
                       {q.type === 'GAP_FILL_DIAGRAM' && (
                         <div style={{ marginBottom: '15px' }}>
                           {q.imageUrl && (
-                            <div style={{ position: 'relative', display: 'inline-block', maxWidth: '100%', borderRadius: '12px', overflow: 'hidden', border: '1px solid #cbd5e1', marginBottom: '20px', width: '100%' }}>
-                              <img src={q.imageUrl} alt="Diagram" style={{ display: 'block', maxWidth: '100%', height: 'auto', opacity: isLocked ? 0.8 : 1 }} />
+                            <div className="question-content" style={{ position: 'relative', display: 'inline-block', maxWidth: '100%', borderRadius: '12px', overflow: 'hidden', border: '1px solid #cbd5e1', marginBottom: '20px', width: '100%' }}>
+                              <img src={q.imageUrl} alt="Diagram" style={{ display: 'block', maxWidth: '100%', height: 'auto', objectFit: 'contain', opacity: isLocked ? 0.8 : 1 }} />
                               {(q.labels || []).map(lbl => (
                                 <div key={lbl.id} style={{ position: 'absolute', left: `${lbl.x}%`, top: `${lbl.y}%`, transform: 'translate(-50%, -50%)', background: '#0ea5e9', color: 'white', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>{lbl.id}</div>
                               ))}
@@ -1060,7 +1094,7 @@ export default function DoAssignment() {
 
                       {/* GAP FILL PARAGRAPH */}
                       {q.type === 'GAP_FILL_PARAGRAPH' && (
-                        <div style={{ padding: isMobile ? '16px' : '24px', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', overflowX: 'auto' }}>
+                        <div className="question-content" style={{ padding: isMobile ? '16px' : '24px', backgroundColor: 'white', borderRadius: '12px', border: '1px solid #cbd5e1', overflowX: 'auto' }}>
                           {renderTextWithGapsQuiz(q)}
                         </div>
                       )}
@@ -1079,7 +1113,7 @@ export default function DoAssignment() {
 
                       {/* --- HIỂN THỊ ĐÁP ÁN ĐÚNG & GIẢI THÍCH KHI ĐÃ CHỐT --- */}
                       {requiresLocking && isLocked && (
-                        <div style={{ marginTop: '20px', padding: '16px', backgroundColor: '#f0f9ff', borderRadius: '12px', border: '1px solid #bae6fd', color: '#0369a1', fontSize: '14px', lineHeight: '1.6' }}>
+                        <div className="question-content" style={{ marginTop: '20px', padding: '16px', backgroundColor: '#f0f9ff', borderRadius: '12px', border: '1px solid #bae6fd', color: '#0369a1', fontSize: '14px', lineHeight: '1.6' }}>
                           <div style={{ fontWeight: '800', marginBottom: showFeedback ? '12px' : '0', color: '#15803d', display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <SvgIcons.Check /> Đáp án đúng: {getCorrectAnswerDisplayForStudent(q)}
                           </div>
