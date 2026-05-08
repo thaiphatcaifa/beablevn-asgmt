@@ -16,6 +16,10 @@ const SvgIcons = {
   Open: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon></svg>,
   Teacher: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>,
   Rocket: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M13.5 22H7a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v6.5"></path><path d="M22 17.5L18 22l-4.5-4.5"></path><line x1="18" y1="22" x2="18" y2="12"></line></svg>,
+  Folder: () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#003366" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>,
+  QuizSmall: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0ea5e9" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>,
+  Search: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>,
+  ChevronLeft: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>,
   RaceRocket: () => <span style={{ fontSize: '24px', display: 'inline-block', lineHeight: 1 }}>🚀</span>,
   RaceUFO: () => <span style={{ fontSize: '24px', display: 'inline-block', lineHeight: 1 }}>🛸</span>,
   RaceCar: () => <span style={{ fontSize: '24px', display: 'inline-block', transform: 'scaleX(-1)', lineHeight: 1 }}>🏎️</span>,
@@ -71,6 +75,10 @@ export default function Launch() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   
   const [quizzes, setQuizzes] = useState([]);
+  const [folders, setFolders] = useState([]);
+  const [currentFolder, setCurrentFolder] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  
   const [step, setStep] = useState('MENU');
   
   // Modes
@@ -120,11 +128,14 @@ export default function Launch() {
   }, []);
 
   useEffect(() => {
-    const fetchQuizzes = async () => {
+    const fetchData = async () => {
       const qSnap = await getDocs(collection(db, "quizzes"));
       setQuizzes(qSnap.docs.map(d => ({ id: d.id, ...d.data() })).filter(q => !q.isDeleted));
+      
+      const fSnap = await getDocs(collection(db, "folders"));
+      setFolders(fSnap.docs.map(d => ({ id: d.id, ...d.data() })));
     };
-    fetchQuizzes();
+    fetchData();
   }, []);
 
   useEffect(() => {
@@ -318,6 +329,14 @@ export default function Launch() {
     }
   };
 
+  // Logic hiển thị thư mục/bài tập trong Modal SELECT_QUIZ
+  const displayedFolders = folders.filter(f => f.parentId === (currentFolder ? currentFolder.id : null) && f.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const displayedQuizzes = quizzes.filter(q => {
+    const inFolder = currentFolder ? q.folderId === currentFolder.id : !q.folderId;
+    const matchSearch = (q.title || '').toLowerCase().includes(searchQuery.toLowerCase());
+    return inFolder && matchSearch;
+  });
+
   return (
     <div style={{ padding: isMobile ? '15px' : '30px', backgroundColor: '#f8fafc', minHeight: '100vh', fontFamily: "'Josefin Sans', sans-serif", position: 'relative' }}>
       
@@ -325,7 +344,7 @@ export default function Launch() {
       
       <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '20px' }}>
         <button 
-          onClick={() => { setActiveMode('NORMAL'); setStep('SELECT_QUIZ'); }} 
+          onClick={() => { setActiveMode('NORMAL'); setStep('SELECT_QUIZ'); setCurrentFolder(null); setSearchQuery(''); }} 
           style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', cursor: 'pointer', transition: 'all 0.2s ease', color: '#003366', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', width: '100%' }}
         >
           <SvgIcons.Quiz />
@@ -333,7 +352,7 @@ export default function Launch() {
         </button>
 
         <button 
-          onClick={() => { setActiveMode('SPACE_RACE'); setStep('SELECT_QUIZ'); }} 
+          onClick={() => { setActiveMode('SPACE_RACE'); setStep('SELECT_QUIZ'); setCurrentFolder(null); setSearchQuery(''); }} 
           style={{ backgroundColor: 'white', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', cursor: 'pointer', transition: 'all 0.2s ease', color: '#003366', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', width: '100%' }}
         >
           <SvgIcons.Race />
@@ -354,22 +373,62 @@ export default function Launch() {
           
           {/* STEP: SELECT_QUIZ CHO NORMAL & SPACE RACE */}
           {step === 'SELECT_QUIZ' && (
-            <div style={{ backgroundColor: 'white', padding: isMobile ? '20px' : '30px', borderRadius: '20px', width: '100%', maxWidth: '700px', maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #f1f5f9', paddingBottom: '20px' }}>
-                <h2 style={{ color: '#003366', margin: 0, fontWeight: '800', fontSize: isMobile ? '20px' : '24px' }}>Chọn bài tập từ Thư viện</h2>
-                <button onClick={() => setStep('MENU')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex', padding: '4px' }}><SvgIcons.Close /></button>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {quizzes.length === 0 ? <p style={{ color: '#94a3b8', textAlign: 'center', padding: '30px 0', fontSize: '15px' }}>Thư viện chưa có bài tập nào.</p> : quizzes.map(q => (
-                  <div 
-                    key={q.id} onClick={() => { setSelectedQuizId(q.id); setStep('CONFIG'); }}
-                    style={{ padding: '16px 20px', border: '1px solid #cbd5e1', borderRadius: '12px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', transition: 'all 0.2s' }}
-                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0f9ff'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}
-                  >
-                    <div style={{ fontWeight: '700', color: '#003366', fontSize: '16px' }}>{q.title}</div>
-                    <div style={{ color: '#64748b', fontSize: '13px', backgroundColor: '#f8fafc', padding: '6px 12px', borderRadius: '100px', fontWeight: '600', border: '1px solid #e2e8f0' }}>{q.questions?.length || 0} câu hỏi</div>
+            <div style={{ backgroundColor: 'white', borderRadius: '24px', width: '100%', maxWidth: '800px', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', overflow: 'hidden' }}>
+              
+              <div style={{ padding: '24px 30px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    {currentFolder ? (
+                      <button onClick={() => setCurrentFolder(null)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'white', border: '1px solid #cbd5e1', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', color: '#003366', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}><SvgIcons.ChevronLeft /></button>
+                    ) : null}
+                    <h2 style={{ color: '#003366', margin: 0, fontWeight: '800', fontSize: '20px' }}>{currentFolder ? currentFolder.name : 'Chọn bài tập từ Thư viện'}</h2>
                   </div>
-                ))}
+                  <button onClick={() => setStep('MENU')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}><SvgIcons.Close /></button>
+                </div>
+                
+                <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'white', border: '1px solid #cbd5e1', borderRadius: '100px', padding: '10px 16px' }}>
+                  <div style={{ color: '#94a3b8', display: 'flex' }}><SvgIcons.Search /></div>
+                  <input type="text" placeholder="Tìm kiếm thư mục, bài tập..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} style={{ flex: 1, border: 'none', outline: 'none', marginLeft: '10px', fontSize: '14px', color: '#334155' }} />
+                </div>
+              </div>
+
+              <div style={{ padding: '20px 30px', overflowY: 'auto', flex: 1, backgroundColor: 'white' }}>
+                {displayedFolders.length === 0 && displayedQuizzes.length === 0 && (
+                  <p style={{ color: '#94a3b8', textAlign: 'center', padding: '30px 0', fontSize: '15px' }}>Không có dữ liệu trong mục này.</p>
+                )}
+                
+                {/* HIỂN THỊ FOLDERS */}
+                {displayedFolders.length > 0 && (
+                  <div style={{ marginBottom: '24px' }}>
+                    <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>Thư mục</h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
+                      {displayedFolders.map(folder => (
+                        <div key={folder.id} onClick={() => setCurrentFolder(folder)} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '16px', border: '1px solid #e2e8f0', borderRadius: '12px', cursor: 'pointer', transition: 'all 0.2s', backgroundColor: 'white' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0f9ff'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}>
+                          <SvgIcons.Folder />
+                          <span style={{ fontWeight: '700', color: '#003366', fontSize: '15px' }}>{folder.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* HIỂN THỊ QUIZZES */}
+                {displayedQuizzes.length > 0 && (
+                  <div>
+                    <h4 style={{ margin: '0 0 12px 0', fontSize: '13px', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: '800' }}>Bài tập</h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {displayedQuizzes.map(q => (
+                        <div key={q.id} onClick={() => { setSelectedQuizId(q.id); setStep('CONFIG'); }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', border: '1px solid #cbd5e1', borderRadius: '12px', cursor: 'pointer', transition: 'all 0.2s', backgroundColor: 'white' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0f9ff'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <SvgIcons.QuizSmall />
+                            <span style={{ fontWeight: '700', color: '#003366', fontSize: '15px' }}>{q.title}</span>
+                          </div>
+                          <span style={{ color: '#64748b', fontSize: '13px', backgroundColor: '#f8fafc', padding: '4px 10px', borderRadius: '100px', fontWeight: '600', border: '1px solid #e2e8f0' }}>{q.questions?.length || 0} câu</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -527,7 +586,6 @@ export default function Launch() {
                       </thead>
                       <tbody>
                         {weeklyDays.map((d, index) => {
-                          // Preview logic safely
                           const [y, m, d_num] = weekStartDate.split('-').map(Number);
                           const dateObj = new Date(y, m - 1, d_num);
                           dateObj.setDate(dateObj.getDate() + d.id);
@@ -537,7 +595,7 @@ export default function Launch() {
                             <tr key={d.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                               <td style={{ padding: '12px 16px', fontWeight: '700', color: '#003366' }}>{d.label} <span style={{ color: '#94a3b8', fontSize: '12px', fontWeight: '500', display: 'block' }}>{dateString}</span></td>
                               <td style={{ padding: '12px 16px' }}>
-                                <select value={d.quizId} onChange={e => { const newD = [...weeklyDays]; newD[index].quizId = e.target.value; setWeeklyDays(newD); }} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none' }}>
+                                <select value={d.quizId} onChange={e => { const newD = [...weeklyDays]; newD[index].quizId = e.target.value; setWeeklyDays(newD); }} style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', backgroundColor: 'white' }}>
                                   <option value="">-- Không giao bài --</option>
                                   {quizzes.map(q => <option key={q.id} value={q.id}>{q.title}</option>)}
                                 </select>

@@ -7,7 +7,8 @@ const SvgIcons = {
   Plus: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>,
   Trash: () => <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>,
   Back: () => <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>,
-  Save: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+  Save: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>,
+  Import: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
 };
 
 export default function VocabularyManager() {
@@ -18,6 +19,12 @@ export default function VocabularyManager() {
   
   const [editingSet, setEditingSet] = useState(null); 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  // States for Bulk Import feature
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importText, setImportText] = useState('');
+  const [importDelimiter, setImportDelimiter] = useState('tab'); // 'tab', 'comma', 'custom'
+  const [customDelimiter, setCustomDelimiter] = useState('-');
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -74,10 +81,50 @@ export default function VocabularyManager() {
     }
   };
 
+  // --- LOGIC BULK IMPORT ---
+  const handleBulkImport = () => {
+    if (!importText.trim()) {
+      alert("Vui lòng nhập dữ liệu cần import!");
+      return;
+    }
+
+    let delimiterChar = '\t';
+    if (importDelimiter === 'comma') delimiterChar = ',';
+    if (importDelimiter === 'custom') delimiterChar = customDelimiter;
+
+    const rows = importText.split('\n');
+    const newCards = [];
+
+    rows.forEach(row => {
+      if (row.trim() !== '') {
+        const parts = row.split(delimiterChar);
+        if (parts.length >= 2) {
+          newCards.push({
+            id: Date.now() + Math.random(), // Unique ID
+            term: parts[0].trim(),
+            definition: parts[1].trim(),
+            example: parts[2] ? parts[2].trim() : ''
+          });
+        }
+      }
+    });
+
+    if (newCards.length > 0) {
+      setEditingSet({
+        ...editingSet,
+        cards: [...editingSet.cards.filter(c => c.term || c.definition), ...newCards] // Filter empty blank cards before appending
+      });
+      alert(`Đã nhập thành công ${newCards.length} thẻ!`);
+      setShowImportModal(false);
+      setImportText('');
+    } else {
+      alert("Không tìm thấy dữ liệu hợp lệ. Vui lòng kiểm tra lại ký tự phân cách.");
+    }
+  };
+
   // --- LOGIC CHO TAB "CLASSES" ---
   const handleAssignSetToRoom = async (actualRoomId, setId) => {
     try {
-      // Dùng setDoc với merge: true để cực kỳ an toàn, chống lỗi Not Found Document
       await setDoc(doc(db, "rooms", actualRoomId), { assignedVocabId: setId }, { merge: true });
       fetchData();
       alert("Gán bộ thẻ cho lớp thành công!");
@@ -130,9 +177,14 @@ export default function VocabularyManager() {
           <button onClick={() => setEditingSet(null)} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', fontWeight: '700', fontSize: '15px', padding: 0 }}>
             <SvgIcons.Back /> Back to Library
           </button>
-          <button onClick={handleSaveSet} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', backgroundColor: '#003366', color: 'white', padding: '12px 24px', borderRadius: '100px', fontWeight: '700', border: 'none', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(0,51,102,0.2)', width: isMobile ? '100%' : 'auto' }}>
-            <SvgIcons.Save /> Save Set
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={() => setShowImportModal(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', backgroundColor: 'white', color: '#003366', padding: '12px 20px', borderRadius: '100px', border: '1px solid #cbd5e1', fontWeight: '700', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', flex: 1 }}>
+              <SvgIcons.Import /> Import
+            </button>
+            <button onClick={handleSaveSet} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', backgroundColor: '#003366', color: 'white', padding: '12px 24px', borderRadius: '100px', fontWeight: '700', border: 'none', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(0,51,102,0.2)', flex: 1 }}>
+              <SvgIcons.Save /> Save Set
+            </button>
+          </div>
         </div>
 
         <div style={{ backgroundColor: 'white', padding: isMobile ? '20px' : '24px', borderRadius: '16px', border: '1px solid #e2e8f0', marginBottom: '30px' }}>
@@ -179,6 +231,48 @@ export default function VocabularyManager() {
         <button onClick={() => setEditingSet({...editingSet, cards: [...editingSet.cards, { id: Date.now(), term: '', definition: '', example: '' }]})} style={{ width: '100%', padding: '20px', marginTop: '20px', backgroundColor: 'white', border: '2px dashed #003366', borderRadius: '16px', color: '#003366', fontWeight: '800', cursor: 'pointer', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '10px' }}>
           <SvgIcons.Plus /> Thêm thẻ (Add Card)
         </button>
+
+        {/* MODAL IMPORT */}
+        {showImportModal && (
+          <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(15, 23, 42, 0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '15px', boxSizing: 'border-box', backdropFilter: 'blur(4px)' }}>
+            <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '24px', width: '100%', maxWidth: '600px', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', maxHeight: '90vh', overflowY: 'auto' }}>
+              <h3 style={{ color: '#003366', marginTop: 0, marginBottom: '20px', fontWeight: '800', fontSize: '22px' }}>Nhập thẻ hàng loạt (Bulk Import)</h3>
+              
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontWeight: '700', color: '#334155', marginBottom: '8px', fontSize: '14px' }}>Dán dữ liệu của bạn vào đây:</label>
+                <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 10px 0' }}>Định dạng chuẩn: <b>Từ vựng</b> [phân cách] <b>Định nghĩa</b> [phân cách] <b>Ví dụ</b> (nếu có)</p>
+                <textarea 
+                  value={importText} 
+                  onChange={e => setImportText(e.target.value)} 
+                  placeholder={`Word 1\tDefinition 1\tExample 1\nWord 2\tDefinition 2\tExample 2`}
+                  style={{ width: '100%', height: '200px', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px', fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '24px', backgroundColor: '#f8fafc', padding: '16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                <label style={{ display: 'block', fontWeight: '700', color: '#334155', marginBottom: '12px', fontSize: '14px' }}>Ký tự phân cách giữa từ và định nghĩa:</label>
+                <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', color: '#475569' }}>
+                    <input type="radio" checked={importDelimiter === 'tab'} onChange={() => setImportDelimiter('tab')} style={{ accentColor: '#003366' }} /> Dấu Tab (Copy từ Excel)
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', color: '#475569' }}>
+                    <input type="radio" checked={importDelimiter === 'comma'} onChange={() => setImportDelimiter('comma')} style={{ accentColor: '#003366' }} /> Dấu phẩy (,)
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', color: '#475569' }}>
+                    <input type="radio" checked={importDelimiter === 'custom'} onChange={() => setImportDelimiter('custom')} style={{ accentColor: '#003366' }} /> Tùy chỉnh:
+                    <input type="text" value={customDelimiter} onChange={e => { setCustomDelimiter(e.target.value); setImportDelimiter('custom'); }} style={{ width: '40px', padding: '4px 8px', borderRadius: '4px', border: '1px solid #cbd5e1', outline: 'none', textAlign: 'center' }} disabled={importDelimiter !== 'custom'} />
+                  </label>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button style={{ padding: '14px 24px', borderRadius: '100px', border: '1px solid #cbd5e1', backgroundColor: 'white', color: '#64748b', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }} onClick={() => { setShowImportModal(false); setImportText(''); }}>Hủy</button>
+                <button onClick={handleBulkImport} style={{ padding: '14px 24px', borderRadius: '100px', border: 'none', backgroundColor: '#003366', color: 'white', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(0,51,102,0.2)', transition: 'all 0.2s' }}>Nhập dữ liệu</button>
+              </div>
+            </div>
+          </div>
+        )}
+
       </div>
     );
   }

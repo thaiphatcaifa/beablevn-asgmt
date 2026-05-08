@@ -44,7 +44,7 @@ const RichTextInput = ({ label, value, onChange, placeholder, minHeight = '60px'
       editorRef.current.focus();
       range = document.createRange();
       range.selectNodeContents(editorRef.current);
-      range.collapse(false); // Move cursor to end
+      range.collapse(false);
       sel.removeAllRanges();
       sel.addRange(range);
     }
@@ -62,16 +62,11 @@ const RichTextInput = ({ label, value, onChange, placeholder, minHeight = '60px'
 
   const handleInsertImage = (e) => {
     e.preventDefault();
-    
-    // Ghi nhớ chính xác vùng chọn của Editor HIỆN TẠI
     const { sel, range } = focusEditorAndGetSelection();
-
-    // Mở prompt nhập link
     const url = window.prompt("Nhập đường dẫn (URL) hình ảnh:");
     
     if (url && url.trim() !== '') {
       if (editorRef.current) {
-        // Phục hồi lại tiêu điểm (focus) vào đúng Editor này
         editorRef.current.focus();
         sel.removeAllRanges();
         sel.addRange(range);
@@ -190,33 +185,35 @@ export default function CreateExercise() {
             setQuizMode(data.quizMode || 'SINGLE');
             if (data.folderId) setFolderId(data.folderId);
             
+            let loadedSections = [];
             if (data.sections) {
-              setSections(data.sections);
-              setQuestions((data.questions || []).map(q => {
-                if (q.type === 'SAQ') {
-                  const delimiter = q.correctText && q.correctText.includes('|||') ? '|||' : ',';
-                  const answersArr = q.correctText ? q.correctText.split(delimiter).map(s=>s.trim()) : [''];
-                  return { ...q, correctAnswers: answersArr.length > 0 ? answersArr : [''] };
-                }
-                return q;
-              }));
+              loadedSections = data.sections;
+              setSections(loadedSections);
             } else {
               const defaultSecId = 'sec_' + Date.now();
               if (data.passage) {
-                setSections([{ id: defaultSecId, type: 'PASSAGE', title: data.passageTitle || 'Reading Passage 1', passageContent: data.passage }]);
+                loadedSections = [{ id: defaultSecId, type: 'PASSAGE', title: data.passageTitle || 'Reading Passage 1', passageContent: data.passage }];
               } else {
-                setSections([{ id: defaultSecId, type: 'SINGLE', title: 'Part 1' }]);
+                loadedSections = [{ id: defaultSecId, type: 'SINGLE', title: 'Part 1' }];
               }
-              setQuestions((data.questions || []).map(q => {
-                let mappedQ = { ...q, sectionId: defaultSecId };
-                if (mappedQ.type === 'SAQ') {
-                  const delimiter = mappedQ.correctText && mappedQ.correctText.includes('|||') ? '|||' : ',';
-                  const answersArr = mappedQ.correctText ? mappedQ.correctText.split(delimiter).map(s=>s.trim()) : [''];
-                  mappedQ.correctAnswers = answersArr.length > 0 ? answersArr : [''];
-                }
-                return mappedQ;
-              }));
+              setSections(loadedSections);
             }
+
+            const fallbackSecId = loadedSections[0]?.id;
+
+            setQuestions((data.questions || []).map(q => {
+              let mappedQ = { ...q, id: q.id || Date.now().toString() + Math.random().toString(36).substr(2, 5) };
+              // Đảm bảo sectionId hợp lệ, ngăn chặn câu hỏi bị ẩn
+              if (!mappedQ.sectionId || !loadedSections.some(s => s.id === mappedQ.sectionId)) {
+                mappedQ.sectionId = fallbackSecId;
+              }
+              if (mappedQ.type === 'SAQ') {
+                const delimiter = mappedQ.correctText && mappedQ.correctText.includes('|||') ? '|||' : ',';
+                const answersArr = mappedQ.correctText ? mappedQ.correctText.split(delimiter).map(s=>s.trim()) : [''];
+                mappedQ.correctAnswers = answersArr.length > 0 ? answersArr : [''];
+              }
+              return mappedQ;
+            }));
           }
         } catch (error) { console.error("Error:", error); }
         setIsLoading(false);
@@ -253,15 +250,24 @@ export default function CreateExercise() {
         const data = JSON.parse(e.target.result);
         if (data.title) setQuizTitle(data.title);
         if (data.quizMode) setQuizMode(data.quizMode);
-        if (data.sections) setSections(data.sections);
+        
+        const importedSections = data.sections || [{ id: 'sec_' + Date.now(), type: 'SINGLE', title: 'Part 1' }];
+        setSections(importedSections);
+        const fallbackSecId = importedSections[0].id;
+
         if (data.questions) {
           setQuestions(data.questions.map(q => {
-              if (q.type === 'SAQ') {
-                  const delimiter = q.correctText && q.correctText.includes('|||') ? '|||' : ',';
-                  const answersArr = q.correctText ? q.correctText.split(delimiter).map(s=>s.trim()) : [''];
-                  return { ...q, correctAnswers: answersArr.length > 0 ? answersArr : [''] };
+              // Refresh ID để tránh trùng lặp nếu import đè
+              let mappedQ = { ...q, id: (q.id || Date.now().toString()) + '_' + Math.random().toString(36).substr(2, 5) };
+              if (!mappedQ.sectionId || !importedSections.some(s => s.id === mappedQ.sectionId)) {
+                  mappedQ.sectionId = fallbackSecId;
               }
-              return q;
+              if (mappedQ.type === 'SAQ') {
+                  const delimiter = mappedQ.correctText && mappedQ.correctText.includes('|||') ? '|||' : ',';
+                  const answersArr = mappedQ.correctText ? mappedQ.correctText.split(delimiter).map(s=>s.trim()) : [''];
+                  mappedQ.correctAnswers = answersArr.length > 0 ? answersArr : [''];
+              }
+              return mappedQ;
           }));
         }
       } catch (err) { alert("File JSON không hợp lệ hoặc cấu trúc cũ!"); }
@@ -272,27 +278,30 @@ export default function CreateExercise() {
 
   const addSection = (type) => {
     const newSec = { 
-      id: 'sec_' + Date.now(), 
+      id: 'sec_' + Date.now() + Math.random().toString(36).substr(2, 5), 
       type, 
       title: type === 'SINGLE' ? `Section ${sections.length + 1}` : `Reading Passage ${sections.length + 1}`,
       passageContent: ''
     };
-    setSections([...sections, newSec]);
+    setSections(prev => [...prev, newSec]);
   };
 
   const removeSection = (sectionId) => {
     if(window.confirm("Xóa Section này sẽ xóa toàn bộ câu hỏi bên trong. Tiếp tục?")) {
-      setSections(sections.filter(s => s.id !== sectionId));
-      setQuestions(questions.filter(q => q.sectionId !== sectionId));
+      setSections(prev => prev.filter(s => s.id !== sectionId));
+      setQuestions(prev => prev.filter(q => q.sectionId !== sectionId));
     }
   };
 
   const updateSection = (id, field, value) => {
-    setSections(sections.map(s => s.id === id ? { ...s, [field]: value } : s));
+    setSections(prev => prev.map(s => s.id === id ? { ...s, [field]: value } : s));
   };
 
   const addQuestionToSection = (sectionId, type) => {
-    const newQ = { id: Date.now().toString(), sectionId, type, text: '', points: 1, explanation: '' };
+    const newQ = { 
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 5), 
+      sectionId, type, text: '', points: 1, explanation: '' 
+    };
     
     switch (type) {
       case 'MCQ':
@@ -323,11 +332,11 @@ export default function CreateExercise() {
       default:
         break;
     }
-    setQuestions([...questions, newQ]);
+    setQuestions(prev => [...prev, newQ]);
   };
 
-  const updateQuestion = (id, field, value) => {
-    setQuestions(questions.map(q => q.id === id ? { ...q, [field]: value } : q));
+  const updateQuestionText = (id, field, value) => {
+    setQuestions(prev => prev.map(q => q.id === id ? { ...q, [field]: value } : q));
   };
 
   const handleCreateGap = (qId) => {
@@ -343,27 +352,37 @@ export default function CreateExercise() {
     const selectedText = text.substring(start, end).trim();
     if (!selectedText) return;
 
-    const q = questions.find(q => q.id === qId);
-    const currentGaps = q.gaps || [];
-    const newId = currentGaps.length > 0 ? Math.max(...currentGaps.map(g => g.id)) + 1 : 1;
-
-    const newText = text.substring(0, start) + `[${newId}]` + text.substring(end);
-    const newGaps = [...currentGaps, { id: newId, answerString: selectedText }];
-    
-    setQuestions(questions.map(question => question.id === qId ? { ...question, text: newText, gaps: newGaps } : question));
+    setQuestions(prev => prev.map(q => {
+      if (q.id === qId) {
+        const currentGaps = q.gaps || [];
+        const newId = currentGaps.length > 0 ? Math.max(...currentGaps.map(g => g.id)) + 1 : 1;
+        const newText = text.substring(0, start) + `[${newId}]` + text.substring(end);
+        const newGaps = [...currentGaps, { id: newId, answerString: selectedText }];
+        return { ...q, text: newText, gaps: newGaps };
+      }
+      return q;
+    }));
   };
 
   const removeGap = (qId, gapId) => {
-    const q = questions.find(q => q.id === qId);
-    const newGaps = (q.gaps || []).filter(g => g.id !== gapId);
-    const newText = q.text.replace(new RegExp(`\\[${gapId}\\]`, 'g'), '___'); 
-    setQuestions(questions.map(question => question.id === qId ? { ...question, text: newText, gaps: newGaps } : question));
+    setQuestions(prev => prev.map(q => {
+      if (q.id === qId) {
+        const newGaps = (q.gaps || []).filter(g => g.id !== gapId);
+        const newText = q.text.replace(new RegExp(`\\[${gapId}\\]`, 'g'), '___'); 
+        return { ...q, text: newText, gaps: newGaps };
+      }
+      return q;
+    }));
   };
 
   const handleGapAnswerChange = (qId, gapId, value) => {
-    const q = questions.find(q => q.id === qId);
-    const newGaps = q.gaps.map(g => g.id === gapId ? { ...g, answerString: value } : g);
-    setQuestions(questions.map(question => question.id === qId ? { ...question, gaps: newGaps } : question));
+    setQuestions(prev => prev.map(q => {
+      if (q.id === qId) {
+        const newGaps = q.gaps.map(g => g.id === gapId ? { ...g, answerString: value } : g);
+        return { ...q, gaps: newGaps };
+      }
+      return q;
+    }));
   };
 
   const handleImageClick = (e, qId) => {
@@ -371,32 +390,50 @@ export default function CreateExercise() {
     const x = ((e.clientX - rect.left) / rect.width) * 100;
     const y = ((e.clientY - rect.top) / rect.height) * 100;
     
-    const q = questions.find(q => q.id === qId);
-    const currentLabels = q.labels || [];
-    const newId = currentLabels.length > 0 ? Math.max(...currentLabels.map(l => l.id)) + 1 : 1;
-    
-    const newLabels = [...currentLabels, { id: newId, x, y, answerString: '' }];
-    setQuestions(questions.map(question => question.id === qId ? { ...question, labels: newLabels } : question));
+    setQuestions(prev => prev.map(q => {
+      if (q.id === qId) {
+        const currentLabels = q.labels || [];
+        const newId = currentLabels.length > 0 ? Math.max(...currentLabels.map(l => l.id)) + 1 : 1;
+        const newLabels = [...currentLabels, { id: newId, x, y, answerString: '' }];
+        return { ...q, labels: newLabels };
+      }
+      return q;
+    }));
   };
 
   const removeLabel = (qId, labelId) => {
-    const q = questions.find(q => q.id === qId);
-    const newLabels = (q.labels || []).filter(l => l.id !== labelId);
-    setQuestions(questions.map(question => question.id === qId ? { ...question, labels: newLabels } : question));
+    setQuestions(prev => prev.map(q => {
+      if (q.id === qId) {
+        const newLabels = (q.labels || []).filter(l => l.id !== labelId);
+        return { ...q, labels: newLabels };
+      }
+      return q;
+    }));
   };
 
   const handleLabelAnswerChange = (qId, labelId, value) => {
-    const q = questions.find(q => q.id === qId);
-    const newLabels = q.labels.map(l => l.id === labelId ? { ...l, answerString: value } : l);
-    setQuestions(questions.map(question => question.id === qId ? { ...question, labels: newLabels } : question));
+    setQuestions(prev => prev.map(q => {
+      if (q.id === qId) {
+        const newLabels = q.labels.map(l => l.id === labelId ? { ...l, answerString: value } : l);
+        return { ...q, labels: newLabels };
+      }
+      return q;
+    }));
   };
 
   const handleSave = async () => {
     if (!quizTitle.trim() || questions.length === 0) return alert("Vui lòng điền tên bài tập và tạo ít nhất 1 câu hỏi!");
     setIsLoading(true);
     try {
+      const validSectionIds = sections.map(s => s.id);
+      const fallbackSectionId = validSectionIds.length > 0 ? validSectionIds[0] : 'default';
+
       const questionsToSave = questions.map(q => {
         const copy = { ...q };
+        // Clean up orphaned questions safely
+        if (!copy.sectionId || !validSectionIds.includes(copy.sectionId)) {
+            copy.sectionId = fallbackSectionId;
+        }
         if (copy.type === 'SAQ') {
           copy.correctText = (copy.correctAnswers || []).filter(a => String(a).trim() !== '').join('|||');
           delete copy.correctAnswers;
@@ -409,11 +446,13 @@ export default function CreateExercise() {
         quizMode: quizMode,
         sections: sections,
         questions: questionsToSave, 
-        modified: new Date().toISOString().split('T')[0]
+        modified: new Date().toISOString() // Sử dụng full ISO để tracking chính xác
       };
 
-      if (!quizId && folderId) {
+      if (folderId) {
         quizDataToSave.folderId = folderId;
+      } else {
+        quizDataToSave.folderId = null;
       }
 
       await setDoc(doc(db, "quizzes", quizId || 'q_' + Date.now()), quizDataToSave, { merge: true });
@@ -516,14 +555,14 @@ export default function CreateExercise() {
 
                 {isPassage && (
                   <div style={{ marginBottom: '24px', backgroundColor: '#f8fafc', padding: '20px', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', color: '#003366', marginBottom: '12px', fontSize: '14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '700', color: '#003366', marginBottom: '12px', fontSize: '14px' }}>
                       <SvgIcons.Checklist /> Passage Content (Nội dung bài đọc)
-                    </label>
-                    <textarea 
+                    </div>
+                    <RichTextInput 
                       placeholder="Nhập hoặc dán nội dung đoạn văn bài đọc vào đây..."
                       value={section.passageContent || ''}
-                      onChange={e => updateSection(section.id, 'passageContent', e.target.value)}
-                      style={{ width: '100%', padding: '16px', borderRadius: '12px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '15px', fontFamily: 'inherit', minHeight: '200px', resize: 'vertical', lineHeight: '1.6', color: '#334155', boxSizing: 'border-box' }}
+                      onChange={val => updateSection(section.id, 'passageContent', val)}
+                      minHeight="200px"
                     />
                   </div>
                 )}
@@ -541,7 +580,7 @@ export default function CreateExercise() {
                             {q.type.replace(/_/g, ' ')}
                           </span>
                         </div>
-                        <button onClick={() => setQuestions(questions.filter(item => item.id !== q.id))} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>
+                        <button onClick={() => setQuestions(prev => prev.filter(item => item.id !== q.id))} style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: '4px' }}>
                           <SvgIcons.Trash />
                         </button>
                       </div>
@@ -549,7 +588,7 @@ export default function CreateExercise() {
                       {/* --- CÁC DẠNG CÂU HỎI --- */}
                       {q.type === 'MCQ' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                          <RichTextInput label="Question Prompt (Câu hỏi)" value={q.text} onChange={val => updateQuestion(q.id, 'text', val)} placeholder="Nhập nội dung câu hỏi..." />
+                          <RichTextInput label="Question Prompt (Câu hỏi)" value={q.text} onChange={val => updateQuestionText(q.id, 'text', val)} placeholder="Nhập nội dung câu hỏi..." />
                           <div>
                             <label style={{ fontWeight: '700', fontSize: '13px', color: '#003366', display: 'block', marginBottom: '8px' }}>Answer Options (Tick checkbox để thiết lập đáp án đúng):</label>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -557,16 +596,29 @@ export default function CreateExercise() {
                                 <div key={i} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', backgroundColor: 'white', padding: '12px 16px', borderRadius: '8px', border: q.correctOptions?.includes(i) ? '1px solid #003366' : '1px solid #cbd5e1', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
                                   <div style={{ marginTop: '12px' }}>
                                     <input type="checkbox" checked={q.correctOptions?.includes(i)} onChange={e => {
-                                      let copy = [...(q.correctOptions || [])];
-                                      if (e.target.checked) copy.push(i); else copy = copy.filter(x => x !== i);
-                                      updateQuestion(q.id, 'correctOptions', copy);
+                                      const checked = e.target.checked;
+                                      setQuestions(prev => prev.map(item => {
+                                          if (item.id === q.id) {
+                                              let copy = [...(item.correctOptions || [])];
+                                              if (checked) copy.push(i); else copy = copy.filter(x => x !== i);
+                                              return { ...item, correctOptions: copy };
+                                          }
+                                          return item;
+                                      }));
                                     }} style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#003366' }} />
                                   </div>
                                   <div style={{ flex: 1 }}>
                                     <RichTextInput 
                                       value={opt} 
                                       onChange={val => {
-                                        let opts = [...q.options]; opts[i] = val; updateQuestion(q.id, 'options', opts);
+                                        setQuestions(prev => prev.map(item => {
+                                            if (item.id === q.id) {
+                                                let opts = [...item.options]; 
+                                                opts[i] = val; 
+                                                return { ...item, options: opts };
+                                            }
+                                            return item;
+                                        }));
                                       }} 
                                       placeholder={`Lựa chọn ${String.fromCharCode(65 + i)}`}
                                       minHeight="40px"
@@ -575,10 +627,14 @@ export default function CreateExercise() {
                                   {q.options.length > 2 && (
                                     <div style={{ marginTop: '12px' }}>
                                       <button onClick={() => {
-                                        const newOpts = q.options.filter((_, idx) => idx !== i);
-                                        let newCorrect = (q.correctOptions || []).filter(idx => idx !== i).map(idx => idx > i ? idx - 1 : idx);
-                                        updateQuestion(q.id, 'options', newOpts);
-                                        updateQuestion(q.id, 'correctOptions', newCorrect);
+                                        setQuestions(prev => prev.map(item => {
+                                            if (item.id === q.id) {
+                                                const newOpts = item.options.filter((_, idx) => idx !== i);
+                                                let newCorrect = (item.correctOptions || []).filter(idx => idx !== i).map(idx => idx > i ? idx - 1 : idx);
+                                                return { ...item, options: newOpts, correctOptions: newCorrect };
+                                            }
+                                            return item;
+                                        }));
                                       }} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: '4px' }}>
                                         <SvgIcons.Trash />
                                       </button>
@@ -586,7 +642,7 @@ export default function CreateExercise() {
                                   )}
                                 </div>
                               ))}
-                              <button onClick={() => updateQuestion(q.id, 'options', [...q.options, ''])} style={{ display: 'flex', alignItems: 'center', gap: '6px', alignSelf: 'flex-start', background: 'none', border: '1px dashed #cbd5e1', color: '#003366', fontWeight: '700', fontSize: '13px', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', marginTop: '4px' }}>
+                              <button onClick={() => setQuestions(prev => prev.map(item => item.id === q.id ? { ...item, options: [...item.options, ''] } : item))} style={{ display: 'flex', alignItems: 'center', gap: '6px', alignSelf: 'flex-start', background: 'none', border: '1px dashed #cbd5e1', color: '#003366', fontWeight: '700', fontSize: '13px', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', marginTop: '4px' }}>
                                 <SvgIcons.Plus /> Thêm Option
                               </button>
                             </div>
@@ -599,19 +655,22 @@ export default function CreateExercise() {
                           <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '15px' }}>
                             <div style={{ flex: 1 }}>
                               <label style={{ fontWeight: '700', fontSize: '13px', color: '#003366', display: 'block', marginBottom: '8px' }}>Loại hình đánh giá</label>
-                              <select value={q.evalType || 'TFNG'} onChange={e => { updateQuestion(q.id, 'evalType', e.target.value); updateQuestion(q.id, 'correctOption', e.target.value === 'TFNG' ? 'True' : 'Yes'); }} style={{ padding: '12px 16px', width: '100%', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px', color: '#334155', fontWeight: '600', appearance: 'none', cursor: 'pointer' }}>
+                              <select value={q.evalType || 'TFNG'} onChange={e => { 
+                                const val = e.target.value;
+                                setQuestions(prev => prev.map(item => item.id === q.id ? { ...item, evalType: val, correctOption: val === 'TFNG' ? 'True' : 'Yes' } : item));
+                              }} style={{ padding: '12px 16px', width: '100%', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px', color: '#334155', fontWeight: '600', appearance: 'none', cursor: 'pointer' }}>
                                 <option value="TFNG">True / False / Not Given</option>
                                 <option value="YNNG">Yes / No / Not Given</option>
                               </select>
                             </div>
                           </div>
-                          <RichTextInput label="Question Prompt (Nhận định / Quan điểm)" value={q.text} onChange={val => updateQuestion(q.id, 'text', val)} placeholder="Nhập nhận định..." />
+                          <RichTextInput label="Question Prompt (Nhận định / Quan điểm)" value={q.text} onChange={val => updateQuestionText(q.id, 'text', val)} placeholder="Nhập nhận định..." />
                           <div>
                             <label style={{ fontWeight: '700', fontSize: '13px', color: '#003366', display: 'block', marginBottom: '10px' }}>Chọn đáp án đúng (Radio):</label>
                             <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', flexDirection: isMobile ? 'column' : 'row' }}>
                               {(q.evalType === 'YNNG' ? ['Yes', 'No', 'Not Given'] : ['True', 'False', 'Not Given']).map(opt => (
                                 <label key={opt} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: '600', color: q.correctOption === opt ? '#003366' : '#64748b', padding: '10px 16px', border: q.correctOption === opt ? '1px solid #003366' : '1px solid #cbd5e1', borderRadius: '8px', backgroundColor: 'white' }}>
-                                  <input type="radio" name={`eval-${q.id}`} value={opt} checked={q.correctOption === opt} onChange={e => updateQuestion(q.id, 'correctOption', e.target.value)} style={{ accentColor: '#003366', width: '16px', height: '16px' }} />
+                                  <input type="radio" name={`eval-${q.id}`} value={opt} checked={q.correctOption === opt} onChange={e => updateQuestionText(q.id, 'correctOption', e.target.value)} style={{ accentColor: '#003366', width: '16px', height: '16px' }} />
                                   {opt}
                                 </label>
                               ))}
@@ -624,11 +683,11 @@ export default function CreateExercise() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                           <div>
                             <label style={{ fontWeight: '700', fontSize: '13px', color: '#003366', marginBottom: '8px', display: 'block' }}>Options List (Danh sách tham chiếu chung - Tùy chọn)</label>
-                            <textarea placeholder="Nhập danh sách các lựa chọn để học viên tham chiếu..." value={q.optionsList || ''} onChange={e => updateQuestion(q.id, 'optionsList', e.target.value)} style={{ width: '100%', padding: '14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} rows="3" />
+                            <textarea placeholder="Nhập danh sách các lựa chọn để học viên tham chiếu..." value={q.optionsList || ''} onChange={e => updateQuestionText(q.id, 'optionsList', e.target.value)} style={{ width: '100%', padding: '14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} rows="3" />
                           </div>
                           <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '15px' }}>
-                            <div style={{ flex: 1 }}><RichTextInput label="Question Prompt (Đoạn văn / Thông tin)" value={q.text} onChange={val => updateQuestion(q.id, 'text', val)} placeholder="Nhập thông tin câu hỏi..." /></div>
-                            <div style={{ flex: 1 }}><Input label="Correct Match (Đáp án nối đúng)" value={q.correctMatch || ''} onChange={e => updateQuestion(q.id, 'correctMatch', e.target.value)} /></div>
+                            <div style={{ flex: 1 }}><RichTextInput label="Question Prompt (Đoạn văn / Thông tin)" value={q.text} onChange={val => updateQuestionText(q.id, 'text', val)} placeholder="Nhập thông tin câu hỏi..." /></div>
+                            <div style={{ flex: 1 }}><Input label="Correct Match (Đáp án nối đúng)" value={q.correctMatch || ''} onChange={e => updateQuestionText(q.id, 'correctMatch', e.target.value)} /></div>
                           </div>
                         </div>
                       )}
@@ -645,7 +704,7 @@ export default function CreateExercise() {
                                 + Đục lỗ từ bôi đen
                               </button>
                             </div>
-                            <textarea id={`textarea-${q.id}`} placeholder="Dán đoạn văn, bảng, sơ đồ. Bôi đen từ cần điền và bấm nút 'Đục lỗ'..." value={q.text || ''} onChange={e => updateQuestion(q.id, 'text', e.target.value)} style={{ width: '100%', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', minHeight: '120px', lineHeight: '1.6', fontSize: '14px' }} />
+                            <textarea id={`textarea-${q.id}`} placeholder="Dán đoạn văn, bảng, sơ đồ. Bôi đen từ cần điền và bấm nút 'Đục lỗ'..." value={q.text || ''} onChange={e => updateQuestionText(q.id, 'text', e.target.value)} style={{ width: '100%', padding: '16px', borderRadius: '8px', border: '1px solid #e2e8f0', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', minHeight: '120px', lineHeight: '1.6', fontSize: '14px' }} />
                             
                             {(q.gaps && q.gaps.length > 0) && (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '20px' }}>
@@ -661,21 +720,21 @@ export default function CreateExercise() {
                             )}
                           </div>
                           <div style={{ width: isMobile ? '100%' : '200px' }}>
-                            <Input label="Word Limit (Giới hạn từ)" type="number" value={q.wordLimit || 3} onChange={e => updateQuestion(q.id, 'wordLimit', e.target.value)} />
+                            <Input label="Word Limit (Giới hạn từ)" type="number" value={q.wordLimit || 3} onChange={e => updateQuestionText(q.id, 'wordLimit', e.target.value)} />
                           </div>
                         </div>
                       )}
 
                       {q.type === 'GAP_FILL_DIAGRAM' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                          <RichTextInput label="Question Prompt (Hướng dẫn chung cho hình ảnh)" value={q.text} onChange={val => updateQuestion(q.id, 'text', val)} placeholder="VD: Hãy gắn nhãn cho các bộ phận..." />
+                          <RichTextInput label="Question Prompt (Hướng dẫn chung cho hình ảnh)" value={q.text} onChange={val => updateQuestionText(q.id, 'text', val)} placeholder="VD: Hãy gắn nhãn cho các bộ phận..." />
                           
                           <div style={{ backgroundColor: 'white', padding: isMobile ? '16px' : '20px', borderRadius: '12px', border: '1px solid #cbd5e1' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                               <div style={{ color: '#0ea5e9' }}><SvgIcons.Image /></div>
                               <label style={{ fontWeight: '800', color: '#003366', fontSize: '14px' }}>Image URL (Nhập đường dẫn ảnh và click lên ảnh để gắn nhãn)</label>
                             </div>
-                            <input type="text" placeholder="https://link-to-your-image.com/diagram.jpg" value={q.imageUrl || ''} onChange={e => updateQuestion(q.id, 'imageUrl', e.target.value)} style={{ width: '100%', padding: '14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px', boxSizing: 'border-box', marginBottom: '20px' }} />
+                            <input type="text" placeholder="https://link-to-your-image.com/diagram.jpg" value={q.imageUrl || ''} onChange={e => updateQuestionText(q.id, 'imageUrl', e.target.value)} style={{ width: '100%', padding: '14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px', boxSizing: 'border-box', marginBottom: '20px' }} />
                             
                             {q.imageUrl && (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -702,14 +761,14 @@ export default function CreateExercise() {
                           </div>
                           
                           <div style={{ width: isMobile ? '100%' : '200px' }}>
-                            <Input label="Word Limit (Giới hạn từ)" type="number" value={q.wordLimit || 3} onChange={e => updateQuestion(q.id, 'wordLimit', e.target.value)} />
+                            <Input label="Word Limit (Giới hạn từ)" type="number" value={q.wordLimit || 3} onChange={e => updateQuestionText(q.id, 'wordLimit', e.target.value)} />
                           </div>
                         </div>
                       )}
 
                       {q.type === 'SAQ' && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                          <RichTextInput label="Question Prompt (Nội dung câu hỏi ngắn)" value={q.text} onChange={val => updateQuestion(q.id, 'text', val)} placeholder="Nhập câu hỏi ngắn..." />
+                          <RichTextInput label="Question Prompt (Nội dung câu hỏi ngắn)" value={q.text} onChange={val => updateQuestionText(q.id, 'text', val)} placeholder="Nhập câu hỏi ngắn..." />
                           <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '15px' }}>
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '10px' }}>
                               <label style={{ fontWeight: '700', fontSize: '13px', color: '#003366' }}>Các đáp án đúng được chấp nhận:</label>
@@ -719,29 +778,40 @@ export default function CreateExercise() {
                                      type="text"
                                      value={ans} 
                                      onChange={e => {
-                                       const newAns = [...(q.correctAnswers || [''])];
-                                       newAns[i] = e.target.value;
-                                       updateQuestion(q.id, 'correctAnswers', newAns);
+                                       const val = e.target.value;
+                                       setQuestions(prev => prev.map(item => {
+                                           if (item.id === q.id) {
+                                               const newAns = [...(item.correctAnswers || [''])];
+                                               newAns[i] = val;
+                                               return { ...item, correctAnswers: newAns };
+                                           }
+                                           return item;
+                                       }));
                                      }} 
                                      placeholder={`Đáp án đúng ${i + 1}`} 
                                      style={{ flex: 1, padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px', color: '#334155', boxSizing: 'border-box' }}
                                    />
                                    {(q.correctAnswers || ['']).length > 1 && (
                                      <button onClick={() => {
-                                       const newAns = (q.correctAnswers || ['']).filter((_, idx) => idx !== i);
-                                       updateQuestion(q.id, 'correctAnswers', newAns);
+                                       setQuestions(prev => prev.map(item => {
+                                           if (item.id === q.id) {
+                                               const newAns = (item.correctAnswers || ['']).filter((_, idx) => idx !== i);
+                                               return { ...item, correctAnswers: newAns };
+                                           }
+                                           return item;
+                                       }));
                                      }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '4px' }}>
                                        <SvgIcons.Trash />
                                      </button>
                                    )}
                                  </div>
                               ))}
-                              <button onClick={() => updateQuestion(q.id, 'correctAnswers', [...(q.correctAnswers || ['']), ''])} style={{ display: 'flex', alignItems: 'center', gap: '6px', alignSelf: 'flex-start', background: 'none', border: '1px dashed #cbd5e1', color: '#003366', fontWeight: '700', fontSize: '13px', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', marginTop: '4px' }}>
+                              <button onClick={() => setQuestions(prev => prev.map(item => item.id === q.id ? { ...item, correctAnswers: [...(item.correctAnswers || ['']), ''] } : item))} style={{ display: 'flex', alignItems: 'center', gap: '6px', alignSelf: 'flex-start', background: 'none', border: '1px dashed #cbd5e1', color: '#003366', fontWeight: '700', fontSize: '13px', padding: '10px 16px', borderRadius: '8px', cursor: 'pointer', marginTop: '4px' }}>
                                 <SvgIcons.Plus /> Thêm đáp án đúng
                               </button>
                             </div>
                             <div style={{ width: isMobile ? '100%' : '180px' }}>
-                              <Input label="Word Limit" type="number" value={q.wordLimit || 3} onChange={e => updateQuestion(q.id, 'wordLimit', e.target.value)} />
+                              <Input label="Word Limit" type="number" value={q.wordLimit || 3} onChange={e => updateQuestionText(q.id, 'wordLimit', e.target.value)} />
                             </div>
                           </div>
                         </div>
@@ -759,7 +829,7 @@ export default function CreateExercise() {
                         <textarea 
                           placeholder="Nhập giải thích chi tiết cho đáp án..."
                           value={q.explanation || ''}
-                          onChange={e => updateQuestion(q.id, 'explanation', e.target.value)}
+                          onChange={e => updateQuestionText(q.id, 'explanation', e.target.value)}
                           style={{ width: '100%', padding: '14px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box', minHeight: '80px', fontSize: '14px' }}
                         />
                       </div>

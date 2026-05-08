@@ -111,20 +111,8 @@ export default function DoAssignment() {
         const activeSess = data.activeSession;
         if (activeSess && activeSess.status === 'active') {
           setSessionInfo(activeSess);
-          
-          let activeQuizId = null;
-          if (activeSess.mode === 'Weekly') {
-              activeQuizId = activeSess.activeDays[activeSess.currentDayIndex]?.quizId;
-          } else {
-              activeQuizId = activeSess.quizId;
-          }
-
-          if (activeQuizId && (!quiz || quiz.id !== activeQuizId)) {
-            const quizSnap = await getDoc(doc(db, "quizzes", activeQuizId));
-            if (quizSnap.exists()) setQuiz({ id: activeQuizId, ...quizSnap.data() });
-          }
         } else {
-          setQuiz(null); setSessionInfo(null); setShuffledQuiz(null); setStudentTeam(null);
+          setSessionInfo(null); setShuffledQuiz(null); setStudentTeam(null);
         }
 
         if (data.assignedVocabId) {
@@ -136,7 +124,29 @@ export default function DoAssignment() {
       }
     });
     return () => unsubscribe();
-  }, [roomId, quiz]);
+  }, [roomId]); 
+
+  // Lắng nghe thay đổi trực tiếp từ Quiz để đồng bộ hiển thị cho Học viên
+  useEffect(() => {
+    let unsubQuiz = () => {};
+    if (sessionInfo) {
+      let activeQuizId = null;
+      if (sessionInfo.mode === 'Weekly') {
+          activeQuizId = sessionInfo.activeDays[sessionInfo.currentDayIndex]?.quizId;
+      } else {
+          activeQuizId = sessionInfo.quizId;
+      }
+
+      if (activeQuizId) {
+        unsubQuiz = onSnapshot(doc(db, "quizzes", activeQuizId), (snap) => {
+          if (snap.exists()) setQuiz({ id: activeQuizId, ...snap.data() });
+        });
+      }
+    } else {
+      setQuiz(null);
+    }
+    return () => unsubQuiz();
+  }, [sessionInfo?.quizId, sessionInfo?.currentDayIndex, sessionInfo?.mode]);
 
   // LOGIC KIỂM TRA KHUNG GIỜ WEEKLY
   useEffect(() => {
@@ -183,9 +193,22 @@ export default function DoAssignment() {
     }
   }, [sessionInfo?.startTime, sessionInfo?.currentDayIndex]);
 
+  // Logic map questions thông minh, giúp giữ thứ tự khi Giáo viên chỉ sửa nội dung
   useEffect(() => {
     if (!quiz || !sessionInfo) { setShuffledQuiz(null); return; }
-    if (shuffledQuiz && shuffledQuiz.id === quiz.id) return; 
+
+    if (shuffledQuiz && shuffledQuiz.id === quiz.id) {
+        if (shuffledQuiz.originalQuestionsLength === (quiz.questions || []).length) {
+            // Chỉ đồng bộ lại texts/options, không xáo trộn lại để tránh học viên bị loạn khi đang làm bài
+            const updatedQuestions = shuffledQuiz.questions.map(sq => {
+                const freshQ = quiz.questions.find(q => q.id === sq.id);
+                if (!freshQ) return sq;
+                return { ...freshQ, displayOptions: sq.displayOptions || freshQ.options?.map((text, idx) => ({text, originalIndex: idx})) };
+            });
+            setShuffledQuiz(prev => ({ ...prev, ...quiz, questions: updatedQuestions }));
+            return;
+        }
+    }
 
     const shuffleArray = (array) => {
       const newArr = [...array];
@@ -209,16 +232,23 @@ export default function DoAssignment() {
     if (sessionInfo?.settings?.shuffleQuestions) {
       const sections = quiz.sections && quiz.sections.length > 0 ? quiz.sections : [{ id: 'default' }];
       let finalQuestions = [];
+      const validSectionIds = sections.map(s => s.id);
+      
       sections.forEach(sec => {
-        let secQs = processedQuestions.filter(q => q.sectionId === sec.id || (!q.sectionId && sec.id === 'default'));
+        // Fallback mapping giúp hiển thị cả những câu hỏi mồ côi (tránh lỗi ẩn câu hỏi)
+        let secQs = processedQuestions.filter(q => 
+          q.sectionId === sec.id || 
+          (!q.sectionId && sec.id === 'default') ||
+          (!validSectionIds.includes(q.sectionId) && sec.id === sections[0].id)
+        );
         secQs = shuffleArray(secQs);
         finalQuestions = finalQuestions.concat(secQs);
       });
       processedQuestions = finalQuestions;
     }
 
-    setShuffledQuiz({ ...quiz, questions: processedQuestions });
-  }, [quiz, sessionInfo, shuffledQuiz]);
+    setShuffledQuiz({ ...quiz, questions: processedQuestions, originalQuestionsLength: (quiz.questions || []).length });
+  }, [quiz, sessionInfo]);
 
   useEffect(() => {
     if (!shuffledQuiz || !sessionInfo || isInitialized || view === 'WAITING_START') return;
@@ -756,7 +786,7 @@ export default function DoAssignment() {
           {appHeader('Vocabulary', true, () => setView('DASHBOARD'))}
           <div style={{ maxWidth: '600px', margin: '0 auto', padding: '40px 20px', width: '100%', boxSizing: 'border-box', textAlign: 'center' }}>
             <h2 style={{ color: '#003366', fontSize: '28px', fontWeight: '800', marginBottom: '10px' }}>{vocabSet.title}</h2>
-            <p style={{ color: '#64748b', marginBottom: '40px', fontWeight: '600' }}>{vocabSet.cards.length} terms</p>
+            <p style={{ color: '#64748b', marginBottom: '40px', fontWeight: '600' }}>{vocabSet?.cards?.length || 0} terms</p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <button onClick={() => setView('VOCAB_FLASHCARDS')} style={{ padding: '20px', backgroundColor: 'white', border: '1px solid #cbd5e1', borderRadius: '16px', fontSize: '18px', fontWeight: '700', color: '#003366', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.borderColor = '#003366'} onMouseLeave={e => e.currentTarget.style.borderColor = '#cbd5e1'}>Flashcards</button>
@@ -769,10 +799,23 @@ export default function DoAssignment() {
     }
 
     if (view === 'VOCAB_FLASHCARDS') {
-      const card = vocabSet.cards[vocabCardIndex];
+      if (!vocabSet || !vocabSet.cards || vocabSet.cards.length === 0) {
+        return (
+          <div style={{ backgroundColor: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column', fontFamily: "'Josefin Sans', sans-serif" }}>
+            {appHeader('Vocabulary', true, () => setView('VOCAB_HOME'))}
+            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <p style={{ color: '#94a3b8', fontSize: '16px' }}>Bộ thẻ này chưa có từ vựng nào.</p>
+            </div>
+          </div>
+        );
+      }
+
+      const validIndex = Math.min(Math.max(0, vocabCardIndex), vocabSet.cards.length - 1);
+      const card = vocabSet.cards[validIndex] || {};
+
       return (
         <div style={{ backgroundColor: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column', fontFamily: "'Josefin Sans', sans-serif" }}>
-          {appHeader(`${vocabCardIndex + 1} / ${vocabSet.cards.length}`, true, () => setView('VOCAB_HOME'))}
+          {appHeader(`${validIndex + 1} / ${vocabSet.cards.length}`, true, () => setView('VOCAB_HOME'))}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
             
             <div 
@@ -782,20 +825,20 @@ export default function DoAssignment() {
               <div style={{ width: '100%', height: '100%', position: 'relative', transition: 'transform 0.6s', transformStyle: 'preserve-3d', transform: isFlipped ? 'rotateX(180deg)' : 'rotateX(0deg)' }}>
                 {/* Front */}
                 <div style={{ width: '100%', height: '100%', position: 'absolute', backfaceVisibility: 'hidden', backgroundColor: 'white', borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)', border: '1px solid #e2e8f0' }}>
-                  <h2 style={{ fontSize: '40px', color: '#003366', fontWeight: '800', textAlign: 'center', padding: '20px' }}>{card.term}</h2>
+                  <h2 style={{ fontSize: '40px', color: '#003366', fontWeight: '800', textAlign: 'center', padding: '20px' }}>{card.term || 'No Term'}</h2>
                   <div style={{ position: 'absolute', bottom: '20px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', fontWeight: '600' }}><SvgIcons.Flip /> Click to flip</div>
                 </div>
                 {/* Back */}
                 <div style={{ width: '100%', height: '100%', position: 'absolute', backfaceVisibility: 'hidden', backgroundColor: '#003366', color: 'white', borderRadius: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px', boxSizing: 'border-box', boxShadow: '0 10px 25px -5px rgba(0,0,0,0.2)', transform: 'rotateX(180deg)' }}>
-                  <h3 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '20px', textAlign: 'center' }}>{card.definition}</h3>
+                  <h3 style={{ fontSize: '24px', fontWeight: '700', marginBottom: '20px', textAlign: 'center' }}>{card.definition || 'No Definition'}</h3>
                   {card.example && <p style={{ fontSize: '16px', color: '#cbd5e1', textAlign: 'center', fontStyle: 'italic', lineHeight: '1.6' }}>"{card.example}"</p>}
                 </div>
               </div>
             </div>
 
             <div style={{ display: 'flex', gap: '20px', marginTop: '40px' }}>
-              <button onClick={() => { setVocabCardIndex(Math.max(0, vocabCardIndex - 1)); setIsFlipped(false); }} disabled={vocabCardIndex === 0} style={{ padding: '16px 32px', borderRadius: '100px', border: '1px solid #cbd5e1', background: 'white', color: '#003366', fontWeight: '700', cursor: vocabCardIndex === 0 ? 'not-allowed' : 'pointer', opacity: vocabCardIndex === 0 ? 0.5 : 1 }}>Prev</button>
-              <button onClick={() => { setVocabCardIndex(Math.min(vocabSet.cards.length - 1, vocabCardIndex + 1)); setIsFlipped(false); }} disabled={vocabCardIndex === vocabSet.cards.length - 1} style={{ padding: '16px 32px', borderRadius: '100px', border: 'none', background: '#003366', color: 'white', fontWeight: '700', cursor: vocabCardIndex === vocabSet.cards.length - 1 ? 'not-allowed' : 'pointer', opacity: vocabCardIndex === vocabSet.cards.length - 1 ? 0.5 : 1 }}>Next</button>
+              <button onClick={() => { setVocabCardIndex(Math.max(0, validIndex - 1)); setIsFlipped(false); }} disabled={validIndex === 0} style={{ padding: '16px 32px', borderRadius: '100px', border: '1px solid #cbd5e1', background: 'white', color: '#003366', fontWeight: '700', cursor: validIndex === 0 ? 'not-allowed' : 'pointer', opacity: validIndex === 0 ? 0.5 : 1 }}>Prev</button>
+              <button onClick={() => { setVocabCardIndex(Math.min(vocabSet.cards.length - 1, validIndex + 1)); setIsFlipped(false); }} disabled={validIndex === vocabSet.cards.length - 1} style={{ padding: '16px 32px', borderRadius: '100px', border: 'none', background: '#003366', color: 'white', fontWeight: '700', cursor: validIndex === vocabSet.cards.length - 1 ? 'not-allowed' : 'pointer', opacity: validIndex === vocabSet.cards.length - 1 ? 0.5 : 1 }}>Next</button>
             </div>
           </div>
         </div>
@@ -803,7 +846,15 @@ export default function DoAssignment() {
     }
 
     if (view === 'VOCAB_LEARN') {
-      if(!learnQ) return null;
+      if(!learnQ || !learnQ.card) return (
+        <div style={{ backgroundColor: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column', fontFamily: "'Josefin Sans', sans-serif" }}>
+          {appHeader(`Learn Mode`, true, () => setView('VOCAB_HOME'))}
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <p style={{ color: '#94a3b8', fontSize: '16px' }}>Đang tải hoặc chưa đủ từ vựng để học...</p>
+          </div>
+        </div>
+      );
+
       return (
         <div style={{ backgroundColor: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column', fontFamily: "'Josefin Sans', sans-serif" }}>
           {appHeader(`Learn Mode (${learnStats.correct}/${learnStats.total})`, true, () => setView('VOCAB_HOME'))}
@@ -829,7 +880,7 @@ export default function DoAssignment() {
         <div style={{ backgroundColor: '#f8fafc', minHeight: '100vh', display: 'flex', flexDirection: 'column', fontFamily: "'Josefin Sans', sans-serif" }}>
           {appHeader(`Match Mode`, true, () => setView('VOCAB_HOME'))}
           <div style={{ maxWidth: '900px', margin: '0 auto', padding: '40px 20px', width: '100%', boxSizing: 'border-box' }}>
-            {matchItems.every(i => i.matched) ? (
+            {matchItems.length > 0 && matchItems.every(i => i.matched) ? (
               <div style={{ textAlign: 'center', padding: '60px 20px', backgroundColor: 'white', borderRadius: '24px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
                 <h2 style={{ color: '#15803d', fontSize: '32px', fontWeight: '800' }}>Tuyệt vời!</h2>
                 <button onClick={initMatchMode} style={{ marginTop: '20px', padding: '16px 40px', backgroundColor: '#003366', color: 'white', border: 'none', borderRadius: '100px', fontWeight: '700', fontSize: '18px', cursor: 'pointer', transition: 'all 0.2s' }} onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'} onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}>Chơi lại</button>
@@ -887,9 +938,9 @@ export default function DoAssignment() {
      if (d) displayTitle = `${d.day}: ${d.quizTitle}`;
   }
 
-  const sections = shuffledQuiz.sections && shuffledQuiz.sections.length > 0 
+  const sections = shuffledQuiz?.sections && shuffledQuiz.sections.length > 0 
     ? shuffledQuiz.sections 
-    : [{ id: 'default', type: shuffledQuiz.quizMode === 'PASSAGE' ? 'PASSAGE' : 'SINGLE', title: displayTitle, passageContent: shuffledQuiz.passage }];
+    : [{ id: 'default', type: shuffledQuiz?.quizMode === 'PASSAGE' ? 'PASSAGE' : 'SINGLE', title: displayTitle, passageContent: shuffledQuiz?.passage }];
 
   const renderTextWithGapsQuiz = (q) => {
     if (!q.text) return null;
@@ -944,11 +995,11 @@ export default function DoAssignment() {
       <div style={{ maxWidth: '840px', margin: '0 auto', padding: isMobile ? '20px 15px' : '40px 20px' }}>
         
         {sections.map((section) => {
-          const targetQ = shuffledQuiz.questions[currentQuestionIndex];
+          const targetQ = shuffledQuiz?.questions && shuffledQuiz.questions[currentQuestionIndex];
           if (isTeacherPaced && (!targetQ || (section.id !== targetQ.sectionId && !(section.id === 'default' && !targetQ.sectionId)))) return null;
 
-          let secQuestions = (shuffledQuiz.questions || []).filter(q => q.sectionId === section.id || (!q.sectionId && section.id === 'default'));
-          if (isTeacherPaced) secQuestions = [targetQ];
+          let secQuestions = (shuffledQuiz?.questions || []).filter(q => q.sectionId === section.id || (!q.sectionId && section.id === 'default'));
+          if (isTeacherPaced && targetQ) secQuestions = [targetQ];
           if (secQuestions.length === 0 && !section.passageContent) return null;
 
           return (
@@ -961,7 +1012,7 @@ export default function DoAssignment() {
                     <span style={{ fontWeight: '800', fontSize: '14px', letterSpacing: '1px', textTransform: 'uppercase' }}>Reading Passage</span>
                   </div>
                   <h2 style={{ color: '#003366', marginTop: 0, marginBottom: '24px', fontSize: isMobile ? '22px' : '26px', fontWeight: '800' }}>{section.title}</h2>
-                  <div style={{ color: '#334155', fontSize: '16px', lineHeight: '1.8', whiteSpace: 'pre-wrap', textAlign: 'justify' }}>{section.passageContent}</div>
+                  <div style={{ color: '#334155', fontSize: '16px', lineHeight: '1.8', whiteSpace: 'pre-wrap', textAlign: 'justify' }} dangerouslySetInnerHTML={{ __html: section.passageContent }} />
                 </div>
               )}
 

@@ -1,7 +1,7 @@
 // src/pages/teacher/ExerciseLibrary.jsx
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, getDocs, doc, deleteDoc, updateDoc, setDoc } from 'firebase/firestore';
+import { collection, getDocs, doc, deleteDoc, updateDoc, setDoc, addDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 
 // --- HỆ THỐNG ICONS TỐI GIẢN (SVG Nét mảnh, màu #003366) ---
@@ -16,7 +16,9 @@ const Icons = {
   Trash: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>,
   Restore: () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>,
   Back: () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>,
-  Plus: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+  Plus: () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>,
+  SortAsc: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>,
+  SortDesc: () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline></svg>
 };
 
 export default function ExerciseLibrary() {
@@ -30,6 +32,9 @@ export default function ExerciseLibrary() {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentFolder, setCurrentFolder] = useState(null);
   const [selectedItems, setSelectedItems] = useState([]);
+  
+  // Trạng thái Sắp xếp
+  const [sortConfig, setSortConfig] = useState({ key: 'modified', direction: 'desc' });
 
   // Trạng thái Modals & Menu
   const [showFolderModal, setShowFolderModal] = useState(false);
@@ -73,7 +78,7 @@ export default function ExerciseLibrary() {
     fetchData();
   }, []);
 
-  // --- CÁC HÀM XỬ LÝ ĐƯỢC ĐỒNG BỘ FIREBASE ---
+  // --- CÁC HÀM XỬ LÝ ĐƯỢC ĐỒNG BỘ FIREBASE (Tối ưu bằng Functional Update) ---
 
   // TẠO THƯ MỤC
   const handleCreateFolder = async () => {
@@ -91,7 +96,7 @@ export default function ExerciseLibrary() {
     
     try {
       await setDoc(doc(db, "folders", newFolderId), newFolder);
-      setFolders([...folders, { id: newFolderId, ...newFolder }]);
+      setFolders(prev => [...prev, { id: newFolderId, ...newFolder }]);
       setInputValue('');
       setShowFolderModal(false);
     } catch (error) {
@@ -108,14 +113,14 @@ export default function ExerciseLibrary() {
       if (isFolder) {
         try {
           await updateDoc(doc(db, "folders", item.id), { name: newName });
-          setFolders(folders.map(f => f.id === item.id ? { ...f, name: newName } : f));
+          setFolders(prev => prev.map(f => f.id === item.id ? { ...f, name: newName } : f));
         } catch (error) {
           console.error(error); alert("Lỗi khi đổi tên thư mục!");
         }
       } else {
         try {
           await updateDoc(doc(db, "quizzes", item.id), { title: newName });
-          setQuizzes(quizzes.map(q => q.id === item.id ? { ...q, title: newName } : q));
+          setQuizzes(prev => prev.map(q => q.id === item.id ? { ...q, title: newName } : q));
         } catch (error) { console.error(error); alert("Lỗi khi đổi tên bài tập!"); }
       }
     }
@@ -128,7 +133,7 @@ export default function ExerciseLibrary() {
     const duplicatedQuiz = { ...quiz, id: newId, title: quiz.title + ' (Copy)', modified: new Date().toISOString().split('T')[0] };
     try {
       await setDoc(doc(db, "quizzes", newId), duplicatedQuiz);
-      setQuizzes([...quizzes, duplicatedQuiz]);
+      setQuizzes(prev => [...prev, duplicatedQuiz]);
     } catch (error) { console.error(error); alert("Lỗi khi nhân bản trên hệ thống!"); }
     setActiveMenuId(null);
   };
@@ -150,7 +155,7 @@ export default function ExerciseLibrary() {
         }
         try {
           await updateDoc(doc(db, "folders", item.id), { parentId: targetFolderId });
-          setFolders(folders.map(f => f.id === item.id ? { ...f, parentId: targetFolderId } : f));
+          setFolders(prev => prev.map(f => f.id === item.id ? { ...f, parentId: targetFolderId } : f));
         } catch (error) { console.error(error); alert("Lỗi khi di chuyển thư mục!"); }
       } else {
         // HỖ TRỢ MOVE NHIỀU BÀI TẬP CÙNG LÚC
@@ -160,7 +165,7 @@ export default function ExerciseLibrary() {
 
         try {
           await Promise.all(selectedQuizIds.map(id => updateDoc(doc(db, "quizzes", id), { folderId: targetFolderId })));
-          setQuizzes(quizzes.map(q => selectedQuizIds.includes(q.id) ? { ...q, folderId: targetFolderId } : q));
+          setQuizzes(prev => prev.map(q => selectedQuizIds.includes(q.id) ? { ...q, folderId: targetFolderId } : q));
           if (isMultipleSelected) setSelectedItems([]); // Clear check box
         } catch (error) { console.error(error); alert("Lỗi khi di chuyển bài tập!"); }
       }
@@ -174,12 +179,12 @@ export default function ExerciseLibrary() {
       if (isFolder) {
         try {
           await deleteDoc(doc(db, "folders", item.id));
-          setFolders(folders.filter(f => f.id !== item.id));
+          setFolders(prev => prev.filter(f => f.id !== item.id));
         } catch (error) { console.error(error); alert("Lỗi khi xóa thư mục!"); }
       } else {
         try {
           await updateDoc(doc(db, "quizzes", item.id), { isDeleted: true });
-          setQuizzes(quizzes.map(q => q.id === item.id ? { ...q, isDeleted: true } : q));
+          setQuizzes(prev => prev.map(q => q.id === item.id ? { ...q, isDeleted: true } : q));
         } catch (error) { console.error(error); alert("Lỗi khi xóa bài tập!"); }
       }
     }
@@ -189,7 +194,7 @@ export default function ExerciseLibrary() {
   const handleRestore = async (item) => {
     try {
       await updateDoc(doc(db, "quizzes", item.id), { isDeleted: false });
-      setQuizzes(quizzes.map(q => q.id === item.id ? { ...q, isDeleted: false } : q));
+      setQuizzes(prev => prev.map(q => q.id === item.id ? { ...q, isDeleted: false } : q));
     } catch (error) { console.error(error); alert("Lỗi khi khôi phục trên hệ thống!"); }
     setActiveMenuId(null);
   };
@@ -198,7 +203,7 @@ export default function ExerciseLibrary() {
     if (window.confirm("Bạn có chắc muốn xóa VĨNH VIỄN bài tập này?")) {
       try {
         await deleteDoc(doc(db, "quizzes", item.id));
-        setQuizzes(quizzes.filter(q => q.id !== item.id));
+        setQuizzes(prev => prev.filter(q => q.id !== item.id));
       } catch (error) { console.error(error); alert("Lỗi khi xóa vĩnh viễn trên hệ thống!"); }
     }
     setActiveMenuId(null);
@@ -213,14 +218,53 @@ export default function ExerciseLibrary() {
     setSelectedItems(prev => prev.includes(id) ? prev.filter(itemId => itemId !== id) : [...prev, id]);
   };
 
-  const displayedFolders = folders.filter(f => viewTab === 'Quizzes' && f.parentId === currentFolder && f.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const handleSort = (key) => {
+    let direction = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  // --- LOGIC GLOBAL SEARCH MỚI ĐƯỢC CẬP NHẬT ---
+  const isGlobalSearch = searchQuery.trim() !== '';
+
+  const displayedFolders = folders.filter(f => {
+    if (viewTab !== 'Quizzes') return false;
+    const matchSearch = f.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchFolder = isGlobalSearch ? true : (f.parentId || null) === (currentFolder || null);
+    return matchFolder && matchSearch;
+  });
+
   const displayedQuizzes = quizzes.filter(q => {
     const matchSearch = (q.title || '').toLowerCase().includes(searchQuery.toLowerCase());
     if (viewTab === 'Deleted') return q.isDeleted && matchSearch;
-    return !q.isDeleted && (q.folderId || null) === currentFolder && matchSearch;
+    
+    const matchFolder = isGlobalSearch ? true : (q.folderId || null) === (currentFolder || null);
+    return !q.isDeleted && matchFolder && matchSearch;
   });
 
-  const allDisplayedItems = [...displayedFolders, ...displayedQuizzes];
+  const sortedFolders = [...displayedFolders].sort((a, b) => {
+    if (sortConfig.key === 'name') {
+       return sortConfig.direction === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+    }
+    if (sortConfig.key === 'modified') {
+       return sortConfig.direction === 'asc' ? (a.modified || '').localeCompare(b.modified || '') : (b.modified || '').localeCompare(a.modified || '');
+    }
+    return 0;
+  });
+
+  const sortedQuizzes = [...displayedQuizzes].sort((a, b) => {
+    if (sortConfig.key === 'name') {
+       return sortConfig.direction === 'asc' ? (a.title || '').localeCompare(b.title || '') : (b.title || '').localeCompare(a.title || '');
+    }
+    if (sortConfig.key === 'modified') {
+       return sortConfig.direction === 'asc' ? (a.modified || '').localeCompare(b.modified || '') : (b.modified || '').localeCompare(a.modified || '');
+    }
+    return 0;
+  });
+
+  const allDisplayedItems = [...sortedFolders, ...sortedQuizzes];
 
   const renderMoreOptions = (item, isFolder) => {
     if (activeMenuId !== item.id) return null;
@@ -240,7 +284,6 @@ export default function ExerciseLibrary() {
         <button style={btnStyle} onClick={() => { if(!isFolder) navigate(`/teacher/exercises/${item.id}`); }}> <Icons.Edit /> Edit</button>
         {!isFolder && <button style={btnStyle} onClick={() => handleDuplicate(item)}> <Icons.Copy /> Duplicate</button>}
         
-        {/* ĐỔI CHỮ MOVE THÀNH MOVE SELECTED NẾU ĐANG CHỌN NHIỀU */}
         <button style={btnStyle} onClick={() => handleMove(item, isFolder)}> 
           <Icons.Move /> 
           {(!isFolder && selectedItems.includes(item.id) && selectedItems.length > 1) 
@@ -285,7 +328,7 @@ export default function ExerciseLibrary() {
               <Icons.Plus /> New Folder
             </button>
             <button 
-              onClick={() => navigate('/teacher/exercises/new')} 
+              onClick={() => navigate('/teacher/exercises/new', { state: { folderId: currentFolder } })} 
               style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', flex: 1, backgroundColor: '#003366', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '100px', fontWeight: '700', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(0,51,102,0.2)', fontSize: '14px', whiteSpace: 'nowrap', transition: 'all 0.2s' }}
               onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
               onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
@@ -312,25 +355,41 @@ export default function ExerciseLibrary() {
         </button>
       </div>
 
+      {/* HIỂN THỊ THÔNG BÁO GLOBAL SEARCH */}
+      {isGlobalSearch && (
+        <div style={{ padding: '12px 20px', marginBottom: '20px', backgroundColor: '#e0f2fe', color: '#0369a1', borderRadius: '12px', border: '1px solid #bae6fd', fontSize: '14px', fontWeight: '600' }}>
+          Đang hiển thị kết quả tìm kiếm trên toàn bộ thư viện cho từ khóa: "{searchQuery}"
+        </div>
+      )}
+
       {/* TABLE VIEW TỐI ƯU MOBILE */}
       <div style={{ width: '100%', overflowX: 'auto', backgroundColor: 'white', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
         <div style={{ minWidth: '600px' }}>
           
-          <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 200px 80px', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', fontWeight: '800', color: '#64748b', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', borderRadius: '16px 16px 0 0' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '60px 1fr 200px 80px', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', fontWeight: '800', color: '#64748b', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px', borderRadius: '16px 16px 0 0', userSelect: 'none' }}>
             <div style={{ display: 'flex', justifyContent: 'center' }}><input type="checkbox" onChange={(e) => handleSelectAll(e, allDisplayedItems)} checked={selectedItems.length > 0 && selectedItems.length === allDisplayedItems.length} style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#003366' }} /></div>
-            <div>Name</div>
-            <div>Modified</div>
+            
+            <div onClick={() => handleSort('name')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              Name 
+              {sortConfig.key === 'name' && (sortConfig.direction === 'asc' ? <Icons.SortAsc /> : <Icons.SortDesc />)}
+            </div>
+            
+            <div onClick={() => handleSort('modified')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              Modified 
+              {sortConfig.key === 'modified' && (sortConfig.direction === 'asc' ? <Icons.SortAsc /> : <Icons.SortDesc />)}
+            </div>
+            
             <div style={{ textAlign: 'center' }}>Options</div>
           </div>
 
-          {currentFolder && viewTab === 'Quizzes' && (
+          {currentFolder && viewTab === 'Quizzes' && !isGlobalSearch && (
             <div onClick={() => setCurrentFolder(null)} style={{ padding: '16px 20px', borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: '16px', cursor: 'pointer', color: '#64748b', transition: 'background 0.2s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f8fafc'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}>
               <div style={{ width: '60px', display: 'flex', justifyContent: 'center' }}><Icons.Back /></div>
               <span style={{ fontWeight: '700', fontSize: '15px', color: '#003366' }}>Quay lại cấp trước</span>
             </div>
           )}
 
-          {displayedFolders.map(folder => (
+          {sortedFolders.map(folder => (
             <div key={folder.id} style={{ display: 'grid', gridTemplateColumns: '60px 1fr 200px 80px', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #f1f5f9', position: 'relative', transition: 'background 0.2s', zIndex: activeMenuId === folder.id ? 50 : 1 }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0f9ff'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}>
               <div style={{ display: 'flex', justifyContent: 'center' }}><input type="checkbox" checked={selectedItems.includes(folder.id)} onChange={() => handleSelectItem(folder.id)} style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#003366' }} /></div>
               <div onClick={() => setCurrentFolder(folder.id)} style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer' }}>
@@ -344,7 +403,7 @@ export default function ExerciseLibrary() {
             </div>
           ))}
 
-          {displayedQuizzes.map(quiz => (
+          {sortedQuizzes.map(quiz => (
             <div key={quiz.id} style={{ display: 'grid', gridTemplateColumns: '60px 1fr 200px 80px', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #f1f5f9', position: 'relative', transition: 'background 0.2s', zIndex: activeMenuId === quiz.id ? 50 : 1 }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0f9ff'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'white'}>
               <div style={{ display: 'flex', justifyContent: 'center' }}><input type="checkbox" checked={selectedItems.includes(quiz.id)} onChange={() => handleSelectItem(quiz.id)} style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#003366' }} /></div>
               <div onClick={() => navigate(`/teacher/exercises/${quiz.id}`)} style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer' }}>

@@ -143,6 +143,17 @@ export default function LiveResults() {
     return false;
   };
 
+  const handleManualGrade = async (subId, questionId, currentIsCorrect) => {
+    if (!activeRoom || !subId) return;
+    try {
+      await updateDoc(doc(db, `rooms/${activeRoom}/submissions`, subId), {
+        [`manualGrades.${questionId}`]: !currentIsCorrect
+      });
+    } catch (error) {
+      console.error("Lỗi khi ghi đè điểm:", error);
+    }
+  };
+
   const processAndSaveReport = async (saveQuizData, saveSessionInfo, isAutoWeekly = false) => {
     const questionsToSave = saveQuizData.questions.map(q => ({ 
       id: q.id, type: q.type, text: q.text,
@@ -151,7 +162,6 @@ export default function LiveResults() {
       gaps: q.gaps || [], labels: q.labels || [], explanation: q.explanation || ''
     }));
     
-    // Đọc Submissions TƯƠI từ Firebase tại thời điểm gọi hàm để tránh bị miss data
     const subDocsSnap = await getDocs(collection(db, `rooms/${activeRoom}/submissions`));
     const currentSubmissions = subDocsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
@@ -162,7 +172,9 @@ export default function LiveResults() {
 
       saveQuizData.questions.forEach(q => {
         const stAns = sub?.answers?.[q.id] || '';
-        const isCorrect = evaluateAnswer(q, stAns);
+        const isAutoCorrect = evaluateAnswer(q, stAns);
+        const isCorrect = sub?.manualGrades?.[q.id] !== undefined ? sub.manualGrades[q.id] : isAutoCorrect;
+        
         if (isCorrect) correctCount++;
         evaluatedAnswers[q.id] = { answer: stAns, isCorrect };
       });
@@ -185,7 +197,6 @@ export default function LiveResults() {
 
     await addDoc(collection(db, "reports"), reportData);
 
-    // Xóa Submissions sau khi lưu Report
     for (const subDoc of subDocsSnap.docs) {
       await deleteDoc(doc(db, `rooms/${activeRoom}/submissions`, subDoc.id));
     }
@@ -226,9 +237,9 @@ export default function LiveResults() {
            await processAndSaveReport(quizData, sessionInfo, true);
        }
     };
-    const int = setInterval(checkTransition, 10000); // Quét mỗi 10 giây
+    const int = setInterval(checkTransition, 10000); 
     return () => clearInterval(int);
-  }, [sessionInfo, activeRoom, quizData, roster]); // Phụ thuộc vào roster để build report
+  }, [sessionInfo, activeRoom, quizData, roster]); 
 
   const currentQIndex = sessionInfo?.currentQuestionIndex || 0;
   const handleNextQ = async () => {
@@ -271,7 +282,9 @@ export default function LiveResults() {
       let totalCorrect = 0;
       teamSubs.forEach(sub => {
          quizData.questions.forEach(q => {
-            if (evaluateAnswer(q, sub.answers?.[q.id])) totalCorrect++;
+            const isAutoCorrect = evaluateAnswer(q, sub.answers?.[q.id]);
+            const isCorrect = sub.manualGrades?.[q.id] !== undefined ? sub.manualGrades[q.id] : isAutoCorrect;
+            if (isCorrect) totalCorrect++;
          });
       });
       
@@ -300,6 +313,20 @@ export default function LiveResults() {
   return (
     <div style={{ padding: isMobile ? '15px' : '30px', minHeight: '100vh', backgroundColor: '#f8fafc', fontFamily: "'Josefin Sans', sans-serif" }}>
       
+      <style>
+        {`
+          .saq-zoom {
+            transition: all 0.2s ease;
+          }
+          .saq-zoom:hover {
+            transform: scale(1.5);
+            z-index: 100;
+            position: relative;
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2);
+          }
+        `}
+      </style>
+
       {/* HEADER & CONTROLS */}
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', marginBottom: '30px', backgroundColor: 'white', padding: isMobile ? '16px' : '24px', borderRadius: '16px', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', border: '1px solid #e2e8f0', gap: '15px' }}>
         <div>
@@ -387,11 +414,12 @@ export default function LiveResults() {
                     let correctCount = 0;
                     if (sub) {
                       quizData.questions.forEach(q => {
-                        if (evaluateAnswer(q, sub.answers?.[q.id])) correctCount++;
+                        const isAutoCorrect = evaluateAnswer(q, sub.answers?.[q.id]);
+                        const isCorrect = sub.manualGrades?.[q.id] !== undefined ? sub.manualGrades[q.id] : isAutoCorrect;
+                        if (isCorrect) correctCount++;
                       });
                     }
 
-                    // Tính toán điểm hiển thị theo Format
                     let scoreDisplay = '-';
                     if (sub) {
                       if (scoreFormat === 'PERCENT') scoreDisplay = `${Math.round((correctCount / quizData.questions.length) * 100)}%`;
@@ -434,14 +462,17 @@ export default function LiveResults() {
                         
                         {quizData.questions.map((q, idx) => {
                           const ans = sub?.answers ? sub.answers[q.id] : null;
-                          const isCorrect = evaluateAnswer(q, ans);
+                          const isAutoCorrect = evaluateAnswer(q, ans);
+                          const isCorrect = sub?.manualGrades?.[q.id] !== undefined ? sub.manualGrades[q.id] : isAutoCorrect;
                           
                           let cellBg = 'transparent';
                           let cellColor = '#334155';
                           let cellText = '';
+                          let isClickable = false;
 
-                          if (ans) {
+                          if (ans !== undefined && ans !== null) {
                             cellText = showResponses ? ans : '✓';
+                            isClickable = true;
                             if (showResults) {
                               cellBg = isCorrect ? '#dcfce7' : '#fee2e2'; 
                               cellColor = isCorrect ? '#15803d' : '#b91c1c';
@@ -450,7 +481,32 @@ export default function LiveResults() {
 
                           return (
                             <td key={idx} style={{ padding: '10px', backgroundColor: (isTeacherPaced && currentQIndex === idx) ? '#f0f9ff' : 'transparent', verticalAlign: 'top' }}>
-                              <div style={{ backgroundColor: cellBg, color: cellColor, padding: '8px', borderRadius: '8px', fontWeight: '600', minHeight: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: (ans && !showResults) ? '1px solid #cbd5e1' : 'none', fontSize: '14px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px', margin: '0 auto' }} title={ans}>
+                              <div 
+                                onClick={() => {
+                                  if (isClickable) handleManualGrade(sub.id, q.id, isCorrect);
+                                }}
+                                className={q.type === 'SAQ' && ans && showResponses ? 'saq-zoom' : ''}
+                                style={{ 
+                                  backgroundColor: cellBg, 
+                                  color: cellColor, 
+                                  padding: '8px', 
+                                  borderRadius: '8px', 
+                                  fontWeight: '600', 
+                                  minHeight: '38px', 
+                                  display: 'flex', 
+                                  alignItems: 'center', 
+                                  justifyContent: 'center', 
+                                  border: (ans !== undefined && ans !== null && !showResults) ? '1px solid #cbd5e1' : 'none', 
+                                  fontSize: '14px', 
+                                  whiteSpace: 'nowrap', 
+                                  overflow: 'hidden', 
+                                  textOverflow: 'ellipsis', 
+                                  maxWidth: '120px', 
+                                  margin: '0 auto',
+                                  cursor: isClickable ? 'pointer' : 'default'
+                                }} 
+                                title={ans || ''}
+                              >
                                 {cellText}
                               </div>
                             </td>
