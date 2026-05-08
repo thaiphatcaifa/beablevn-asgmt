@@ -207,9 +207,18 @@ export default function CreateExercise() {
               if (!mappedQ.sectionId || !loadedSections.some(s => s.id === mappedQ.sectionId)) {
                 mappedQ.sectionId = fallbackSecId;
               }
+              // Cập nhật lấy dữ liệu SAQ an toàn, ưu tiên |||
               if (mappedQ.type === 'SAQ') {
-                const delimiter = mappedQ.correctText && mappedQ.correctText.includes('|||') ? '|||' : ',';
-                const answersArr = mappedQ.correctText ? mappedQ.correctText.split(delimiter).map(s=>s.trim()) : [''];
+                let answersArr = [''];
+                if (mappedQ.correctText) {
+                    if (mappedQ.correctText.includes('|||')) {
+                        answersArr = mappedQ.correctText.split('|||').map(s => s.trim()).filter(s => s !== '');
+                    } else {
+                        answersArr = mappedQ.correctText.split(',').map(s => s.trim()).filter(s => s !== '');
+                    }
+                } else if (mappedQ.correctAnswers && Array.isArray(mappedQ.correctAnswers)) {
+                    answersArr = mappedQ.correctAnswers;
+                }
                 mappedQ.correctAnswers = answersArr.length > 0 ? answersArr : [''];
               }
               return mappedQ;
@@ -263,8 +272,16 @@ export default function CreateExercise() {
                   mappedQ.sectionId = fallbackSecId;
               }
               if (mappedQ.type === 'SAQ') {
-                  const delimiter = mappedQ.correctText && mappedQ.correctText.includes('|||') ? '|||' : ',';
-                  const answersArr = mappedQ.correctText ? mappedQ.correctText.split(delimiter).map(s=>s.trim()) : [''];
+                  let answersArr = [''];
+                  if (mappedQ.correctText) {
+                      if (mappedQ.correctText.includes('|||')) {
+                          answersArr = mappedQ.correctText.split('|||').map(s => s.trim()).filter(s => s !== '');
+                      } else {
+                          answersArr = mappedQ.correctText.split(',').map(s => s.trim()).filter(s => s !== '');
+                      }
+                  } else if (mappedQ.correctAnswers && Array.isArray(mappedQ.correctAnswers)) {
+                      answersArr = mappedQ.correctAnswers;
+                  }
                   mappedQ.correctAnswers = answersArr.length > 0 ? answersArr : [''];
               }
               return mappedQ;
@@ -435,7 +452,15 @@ export default function CreateExercise() {
             copy.sectionId = fallbackSectionId;
         }
         if (copy.type === 'SAQ') {
-          copy.correctText = (copy.correctAnswers || []).filter(a => String(a).trim() !== '').join('|||');
+          // Lưu SAQ bằng ||| an toàn, tránh lỗi rỗng mảng
+          const validAnswers = (copy.correctAnswers || []).map(a => String(a).trim()).filter(a => a !== '');
+          if (validAnswers.length === 1) {
+              copy.correctText = validAnswers[0] + '|||'; 
+          } else if (validAnswers.length > 1) {
+              copy.correctText = validAnswers.join('|||');
+          } else {
+              copy.correctText = '';
+          }
           delete copy.correctAnswers;
         }
         return copy;

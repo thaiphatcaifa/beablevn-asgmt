@@ -313,16 +313,50 @@ export default function LiveResults() {
   return (
     <div style={{ padding: isMobile ? '15px' : '30px', minHeight: '100vh', backgroundColor: '#f8fafc', fontFamily: "'Josefin Sans', sans-serif" }}>
       
+      {/* CSS CHO CUSTOM TOOLTIP HIỂN THỊ TRỌN VẸN ĐÁP ÁN */}
       <style>
         {`
-          .saq-zoom {
-            transition: all 0.2s ease;
-          }
-          .saq-zoom:hover {
-            transform: scale(1.5);
-            z-index: 100;
+          .answer-cell {
             position: relative;
-            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2);
+            transition: background-color 0.2s ease;
+          }
+          .answer-tooltip {
+            visibility: hidden;
+            background-color: #1e293b;
+            color: #fff;
+            text-align: center;
+            border-radius: 8px;
+            padding: 8px 12px;
+            position: absolute;
+            z-index: 9999;
+            bottom: 110%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.2s;
+            font-size: 13px;
+            font-weight: 500;
+            white-space: normal;
+            width: max-content;
+            max-width: 250px;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.2);
+            pointer-events: none;
+            line-height: 1.5;
+            word-wrap: break-word;
+          }
+          .answer-tooltip::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -6px;
+            border-width: 6px;
+            border-style: solid;
+            border-color: #1e293b transparent transparent transparent;
+          }
+          .answer-cell:hover .answer-tooltip {
+            visibility: visible;
+            opacity: 1;
           }
         `}
       </style>
@@ -481,33 +515,40 @@ export default function LiveResults() {
 
                           return (
                             <td key={idx} style={{ padding: '10px', backgroundColor: (isTeacherPaced && currentQIndex === idx) ? '#f0f9ff' : 'transparent', verticalAlign: 'top' }}>
-                              <div 
-                                onClick={() => {
-                                  if (isClickable) handleManualGrade(sub.id, q.id, isCorrect);
-                                }}
-                                className={q.type === 'SAQ' && ans && showResponses ? 'saq-zoom' : ''}
-                                style={{ 
-                                  backgroundColor: cellBg, 
-                                  color: cellColor, 
-                                  padding: '8px', 
-                                  borderRadius: '8px', 
-                                  fontWeight: '600', 
-                                  minHeight: '38px', 
-                                  display: 'flex', 
-                                  alignItems: 'center', 
-                                  justifyContent: 'center', 
-                                  border: (ans !== undefined && ans !== null && !showResults) ? '1px solid #cbd5e1' : 'none', 
-                                  fontSize: '14px', 
-                                  whiteSpace: 'nowrap', 
-                                  overflow: 'hidden', 
-                                  textOverflow: 'ellipsis', 
-                                  maxWidth: '120px', 
-                                  margin: '0 auto',
-                                  cursor: isClickable ? 'pointer' : 'default'
-                                }} 
-                                title={ans || ''}
-                              >
-                                {cellText}
+                              <div className={ans && showResponses ? 'answer-cell' : ''} style={{ position: 'relative', margin: '0 auto', maxWidth: '120px' }}>
+                                <div 
+                                  onClick={() => {
+                                    if (isClickable) {
+                                      if (window.confirm("Bạn có chắc chắn muốn thay đổi kết quả của câu này không?")) {
+                                        handleManualGrade(sub.id, q.id, isCorrect);
+                                      }
+                                    }
+                                  }}
+                                  style={{ 
+                                    backgroundColor: cellBg, 
+                                    color: cellColor, 
+                                    padding: '8px', 
+                                    borderRadius: '8px', 
+                                    fontWeight: '600', 
+                                    minHeight: '38px', 
+                                    display: 'flex', 
+                                    alignItems: 'center', 
+                                    justifyContent: 'center', 
+                                    border: (ans !== undefined && ans !== null && !showResults) ? '1px solid #cbd5e1' : 'none', 
+                                    fontSize: '14px', 
+                                    whiteSpace: 'nowrap', 
+                                    overflow: 'hidden', 
+                                    textOverflow: 'ellipsis', 
+                                    cursor: isClickable ? 'pointer' : 'default',
+                                    width: '100%'
+                                  }} 
+                                  title={ans || ''}
+                                >
+                                  {cellText}
+                                </div>
+                                {ans && showResponses && String(ans).length > 5 && (
+                                  <span className="answer-tooltip">{ans}</span>
+                                )}
                               </div>
                             </td>
                           );

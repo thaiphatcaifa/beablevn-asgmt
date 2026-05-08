@@ -1,6 +1,6 @@
 // src/pages/teacher/Reports.jsx
 import { useState, useEffect } from 'react';
-import { collection, getDocs, deleteDoc, doc } from 'firebase/firestore';
+import { collection, getDocs, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 
 // --- HỆ THỐNG SVG ICONS TỐI GIẢN ---
@@ -10,7 +10,8 @@ const SvgIcons = {
   Download: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>,
   Trash: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>,
   Archive: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>,
-  Search: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+  Search: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>,
+  Restore: () => <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="1 4 1 10 7 10"></polyline><polyline points="23 20 23 14 17 14"></polyline><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 0 1 3.51 15"></path></svg>
 };
 
 const Toggle = ({ label, checked, onChange }) => (
@@ -88,7 +89,7 @@ const ReportDetailView = ({ report, onBack }) => {
     setExportStudents(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
-  // HÀM XUẤT FILE HTML CHUYÊN SÂU ĐỂ IN (Giống Socrative/Showbie, Tích hợp Logo)
+  // HÀM XUẤT FILE HTML CHUYÊN SÂU ĐỂ IN
   const handleExportHTML = async () => {
     const studentsToExport = exportScope === 'all' 
       ? submissions.filter(s => s.submitted) 
@@ -101,7 +102,6 @@ const ReportDetailView = ({ report, onBack }) => {
 
     setIsExporting(true);
 
-    // Lấy ảnh Logo và chuyển sang Base64
     const logoBase64 = await getBase64FromUrl('/BA LOGO.png');
     const logoHtml = logoBase64 ? `<img src="${logoBase64}" alt="BA Logo" style="height: 65px; object-fit: contain;" />` : '';
 
@@ -135,7 +135,6 @@ const ReportDetailView = ({ report, onBack }) => {
     `;
 
     studentsToExport.forEach(student => {
-      // 1. Tính toán Sessions
       let totalMs = 0;
       let sessionRows = '';
       const sessions = student.sessions || [];
@@ -165,7 +164,6 @@ const ReportDetailView = ({ report, onBack }) => {
       const totalSecs = Math.floor((totalMs % 60000) / 1000);
       const totalDurStr = `${totalMins} phút ${totalSecs} giây`;
 
-      // 2. Render Header Sinh Viên với Logo
       htmlContent += `
         <div class="page">
           <div class="header-box">
@@ -199,7 +197,6 @@ const ReportDetailView = ({ report, onBack }) => {
           <h3>Chi tiết Bài làm</h3>
       `;
 
-      // 3. Render từng câu hỏi
       questions.forEach((q, idx) => {
         const stAnsObj = student.answers?.[q.id];
         const stAns = stAnsObj?.answer || '<em>Chưa làm</em>';
@@ -239,7 +236,6 @@ const ReportDetailView = ({ report, onBack }) => {
 
     htmlContent += `</body></html>`;
 
-    // 4. Download file
     const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -413,6 +409,9 @@ export default function Reports() {
   const [selectedReports, setSelectedReports] = useState([]);
   const [viewingReport, setViewingReport] = useState(null);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  
+  // STATE MỚI: QUẢN LÝ TABS
+  const [viewTab, setViewTab] = useState('Active'); // 'Active' | 'Deleted'
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 768);
@@ -434,30 +433,64 @@ export default function Reports() {
 
   useEffect(() => { fetchReports(); }, []);
 
-  // Lọc dữ liệu
+  // Logic Lọc (Thêm tính năng lọc theo Tab)
   const filteredReports = reports.filter(r => {
+    const matchTab = viewTab === 'Deleted' ? r.isDeleted : !r.isDeleted;
     const matchSearch = r.name?.toLowerCase().includes(searchQuery.toLowerCase());
     const matchRoom = roomFilter === 'All Rooms' || r.room === roomFilter;
-    return matchSearch && matchRoom;
+    return matchTab && matchSearch && matchRoom;
   });
 
-  const uniqueRooms = ['All Rooms', ...new Set(reports.map(r => r.room))];
+  const uniqueRooms = ['All Rooms', ...new Set(reports.filter(r => (viewTab === 'Deleted' ? r.isDeleted : !r.isDeleted)).map(r => r.room))];
 
   const handleSelectAll = (e) => {
     if (e.target.checked) setSelectedReports(filteredReports.map(r => r.id));
     else setSelectedReports([]);
   };
 
-  const handleDelete = async () => {
-    if (!window.confirm(`Bạn có chắc muốn xóa vĩnh viễn ${selectedReports.length} báo cáo này?`)) return;
+  // --- LOGIC XÓA TẠM THỜI (VÀO THÙNG RÁC) ---
+  const handleSoftDelete = async () => {
+    if (!window.confirm(`Bạn có chắc muốn chuyển ${selectedReports.length} báo cáo này vào thùng rác?`)) return;
+    try {
+      for (let id of selectedReports) {
+        await updateDoc(doc(db, "reports", id), { isDeleted: true });
+      }
+      // Dùng prev state an toàn để cập nhật hiển thị
+      setReports(prev => prev.map(r => selectedReports.includes(r.id) ? { ...r, isDeleted: true } : r));
+      setSelectedReports([]);
+    } catch (error) {
+      console.error("Lỗi xóa tạm:", error);
+      alert("Đã xảy ra lỗi khi chuyển vào thùng rác.");
+    }
+  };
+
+  // --- LOGIC KHÔI PHỤC TỪ THÙNG RÁC ---
+  const handleRestore = async () => {
+    if (!window.confirm(`Bạn có chắc muốn khôi phục ${selectedReports.length} báo cáo này?`)) return;
+    try {
+      for (let id of selectedReports) {
+        await updateDoc(doc(db, "reports", id), { isDeleted: false });
+      }
+      setReports(prev => prev.map(r => selectedReports.includes(r.id) ? { ...r, isDeleted: false } : r));
+      setSelectedReports([]);
+    } catch (error) {
+      console.error("Lỗi khôi phục:", error);
+      alert("Đã xảy ra lỗi khi khôi phục.");
+    }
+  };
+
+  // --- LOGIC XÓA VĨNH VIỄN ---
+  const handleHardDelete = async () => {
+    if (!window.confirm(`Hành động này sẽ XÓA VĨNH VIỄN ${selectedReports.length} báo cáo và không thể phục hồi. Bạn có chắc chắn?`)) return;
     try {
       for (let id of selectedReports) {
         await deleteDoc(doc(db, "reports", id));
       }
-      setReports(reports.filter(r => !selectedReports.includes(r.id)));
+      setReports(prev => prev.filter(r => !selectedReports.includes(r.id)));
       setSelectedReports([]);
     } catch (error) {
-      console.error("Lỗi xóa:", error);
+      console.error("Lỗi xóa vĩnh viễn:", error);
+      alert("Đã xảy ra lỗi khi xóa vĩnh viễn.");
     }
   };
 
@@ -470,6 +503,22 @@ export default function Reports() {
     <div style={{ padding: isMobile ? '15px' : '30px', backgroundColor: '#f8fafc', minHeight: '100vh', fontFamily: "'Josefin Sans', sans-serif" }}>
       <h2 style={{ color: '#003366', margin: '0 0 24px 0', fontSize: isMobile ? '24px' : '28px', fontWeight: '800' }}>Reports</h2>
       
+      {/* TABS (ACTIVE & DELETED) */}
+      <div style={{ display: 'flex', gap: '30px', borderBottom: '2px solid #e2e8f0', marginBottom: '24px', overflowX: 'auto' }}>
+        <button 
+          onClick={() => { setViewTab('Active'); setSelectedReports([]); }}
+          style={{ background: 'none', border: 'none', padding: '12px 0', fontSize: '15px', fontWeight: '800', cursor: 'pointer', color: viewTab === 'Active' ? '#003366' : '#94a3b8', borderBottom: viewTab === 'Active' ? '3px solid #003366' : '3px solid transparent', marginBottom: '-2px', whiteSpace: 'nowrap', transition: 'all 0.2s' }}
+        >
+          Active Reports
+        </button>
+        <button 
+          onClick={() => { setViewTab('Deleted'); setSelectedReports([]); }}
+          style={{ background: 'none', border: 'none', padding: '12px 0', fontSize: '15px', fontWeight: '800', cursor: 'pointer', color: viewTab === 'Deleted' ? '#003366' : '#94a3b8', borderBottom: viewTab === 'Deleted' ? '3px solid #003366' : '3px solid transparent', marginBottom: '-2px', whiteSpace: 'nowrap', transition: 'all 0.2s' }}
+        >
+          Deleted
+        </button>
+      </div>
+
       {/* TOOLBAR: Search, Filter & Actions */}
       <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', marginBottom: '24px', gap: '15px' }}>
         <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '12px', width: isMobile ? '100%' : 'auto' }}>
@@ -494,14 +543,28 @@ export default function Reports() {
           </select>
         </div>
 
+        {/* NÚT THAO TÁC (Tùy thuộc vào Tab hiện tại) */}
         {selectedReports.length > 0 && (
           <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '10px', width: isMobile ? '100%' : 'auto' }}>
-            <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: isMobile ? '100%' : 'auto', backgroundColor: 'white', color: '#003366', border: '1px solid #cbd5e1', padding: '12px 20px', borderRadius: '100px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
-              <SvgIcons.Archive /> Archive
-            </button>
-            <button onClick={handleDelete} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: isMobile ? '100%' : 'auto', backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '100px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>
-              <SvgIcons.Trash /> Delete Selected
-            </button>
+            {viewTab === 'Active' ? (
+              <>
+                <button style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: isMobile ? '100%' : 'auto', backgroundColor: 'white', color: '#003366', border: '1px solid #cbd5e1', padding: '12px 20px', borderRadius: '100px', fontWeight: '700', cursor: 'pointer', transition: 'all 0.2s' }}>
+                  <SvgIcons.Archive /> Archive
+                </button>
+                <button onClick={handleSoftDelete} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: isMobile ? '100%' : 'auto', backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '100px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>
+                  <SvgIcons.Trash /> Delete Selected
+                </button>
+              </>
+            ) : (
+              <>
+                <button onClick={handleRestore} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: isMobile ? '100%' : 'auto', backgroundColor: '#10b981', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '100px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>
+                  <SvgIcons.Restore /> Restore
+                </button>
+                <button onClick={handleHardDelete} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', width: isMobile ? '100%' : 'auto', backgroundColor: '#ef4444', color: 'white', border: 'none', padding: '12px 20px', borderRadius: '100px', fontWeight: '700', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>
+                  <SvgIcons.Trash /> Hard Delete
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>

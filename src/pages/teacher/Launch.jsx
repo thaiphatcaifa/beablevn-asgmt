@@ -329,12 +329,19 @@ export default function Launch() {
     }
   };
 
-  // Logic hiển thị thư mục/bài tập trong Modal SELECT_QUIZ
-  const displayedFolders = folders.filter(f => f.parentId === (currentFolder ? currentFolder.id : null) && f.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  // --- LOGIC GLOBAL SEARCH MỚI ĐƯỢC CẬP NHẬT ---
+  const isGlobalSearch = searchQuery.trim() !== '';
+
+  const displayedFolders = folders.filter(f => {
+    const matchSearch = f.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchFolder = isGlobalSearch ? true : f.parentId === (currentFolder ? currentFolder.id : null);
+    return matchFolder && matchSearch;
+  });
+
   const displayedQuizzes = quizzes.filter(q => {
-    const inFolder = currentFolder ? q.folderId === currentFolder.id : !q.folderId;
     const matchSearch = (q.title || '').toLowerCase().includes(searchQuery.toLowerCase());
-    return inFolder && matchSearch;
+    const matchFolder = isGlobalSearch ? true : (q.folderId || null) === (currentFolder ? currentFolder.id : null);
+    return matchFolder && matchSearch;
   });
 
   return (
@@ -378,10 +385,12 @@ export default function Launch() {
               <div style={{ padding: '24px 30px', borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    {currentFolder ? (
+                    {currentFolder && !isGlobalSearch ? (
                       <button onClick={() => setCurrentFolder(null)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'white', border: '1px solid #cbd5e1', borderRadius: '50%', width: '32px', height: '32px', cursor: 'pointer', color: '#003366', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}><SvgIcons.ChevronLeft /></button>
                     ) : null}
-                    <h2 style={{ color: '#003366', margin: 0, fontWeight: '800', fontSize: '20px' }}>{currentFolder ? currentFolder.name : 'Chọn bài tập từ Thư viện'}</h2>
+                    <h2 style={{ color: '#003366', margin: 0, fontWeight: '800', fontSize: '20px' }}>
+                      {isGlobalSearch ? 'Kết quả tìm kiếm' : (currentFolder ? currentFolder.name : 'Chọn bài tập từ Thư viện')}
+                    </h2>
                   </div>
                   <button onClick={() => setStep('MENU')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', display: 'flex' }}><SvgIcons.Close /></button>
                 </div>
